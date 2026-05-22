@@ -1075,6 +1075,23 @@ setInterval(() => {
   const hasExpired = data.some(d => d.cutoff && new Date(d.cutoff) < new Date());
   if (hasExpired) renderTable();
 }, 60000);
+
+// 每30秒轮询服务器version.json，检测到更新自动刷新页面
+(function autoUpdate() {
+  fetch('version.json?t=' + Date.now())
+    .then(r => r.json())
+    .then(server => {
+      const localVer = sessionStorage.getItem('page_version');
+      if (localVer && parseInt(localVer) !== server.version) {
+        sessionStorage.setItem('page_version', server.version);
+        location.reload();
+      } else if (!localVer) {
+        sessionStorage.setItem('page_version', server.version);
+      }
+    })
+    .catch(() => {}); // 离线或加载失败时静默忽略
+  setTimeout(autoUpdate, 30000);
+})();
 </script>
 
 </body>
