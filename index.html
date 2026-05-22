@@ -1,0 +1,1081 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>舱位管理系统</title>
+<script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif; background: #f0f2f5; color: #333; min-height: 100vh; }
+header { background: linear-gradient(135deg, #1a73e8, #0d47a1); color: #fff; padding: 20px 32px; }
+header h1 { font-size: 22px; font-weight: 600; }
+header .subtitle { font-size: 13px; opacity: 0.8; margin-top: 4px; }
+
+.container { max-width: 1600px; margin: 0 auto; padding: 20px 24px; }
+
+/* 统计卡片 */
+.stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 20px; }
+.stat-card { background: #fff; border-radius: 10px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+.stat-card .label { font-size: 13px; color: #888; margin-bottom: 6px; }
+.stat-card .value { font-size: 28px; font-weight: 700; color: #1a73e8; }
+.stat-card.warn .value { color: #e67e22; }
+.stat-card.danger .value { color: #e74c3c; }
+.stat-card.ok .value { color: #27ae60; }
+.stat-card .sub-note { font-size: 11px; color: #e74c3c; margin-top: 4px; }
+
+/* 工具栏 */
+.toolbar { background: #fff; border-radius: 10px; padding: 16px 20px; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.toolbar input, .toolbar select { padding: 8px 12px; border: 1px solid #d0d5dd; border-radius: 6px; font-size: 13px; }
+.toolbar input { width: 240px; }
+.toolbar select { width: 140px; }
+.ratio-config { display: flex; align-items: center; gap: 6px; font-size: 13px; color: #666; background: #f8f9fa; border-radius: 6px; padding: 6px 12px; white-space: nowrap; }
+.ratio-config input { width: 60px; padding: 4px 8px; border: 1px solid #d0d5dd; border-radius: 4px; font-size: 13px; text-align: center; }
+.ratio-hint { font-size: 11px; color: #888; margin-top: 2px; }
+.btn { padding: 8px 18px; border: none; border-radius: 6px; font-size: 13px; cursor: pointer; font-weight: 500; transition: all 0.2s; }
+.btn-primary { background: #1a73e8; color: #fff; }
+.btn-primary:hover { background: #1557b0; }
+.btn-success { background: #27ae60; color: #fff; }
+.btn-success:hover { background: #1e8449; }
+.btn-danger { background: #e74c3c; color: #fff; }
+.btn-danger:hover { background: #c0392b; }
+.btn-outline { background: #fff; color: #1a73e8; border: 1px solid #1a73e8; }
+.btn-outline:hover { background: #e8f0fe; }
+.btn-sm { padding: 5px 12px; font-size: 12px; }
+.spacer { flex: 1; }
+
+/* 表格 */
+.table-wrap { background: #fff; border-radius: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); overflow: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; white-space: nowrap; }
+thead { position: sticky; top: 0; z-index: 2; }
+thead th { background: #f8f9fa; border-bottom: 2px solid #e0e0e0; padding: 12px 10px; text-align: left; font-weight: 600; color: #555; font-size: 12px; }
+thead th.col-backend { background: #e8f0fe; color: #1a73e8; }
+thead th.col-display { background: #fff3e0; color: #e67e22; }
+tbody td { padding: 10px; border-bottom: 1px solid #f0f0f0; }
+tbody tr:hover { background: #f5f8ff; }
+tbody tr.expired { background: #f5f5f5; color: #aaa; }
+tbody tr.expired:hover { background: #ececec; }
+td.warehouse-tag { text-align: center; }
+.warehouse-east { display: inline-block; background: #e8f0fe; color: #1a73e8; padding: 2px 10px; border-radius: 12px; font-size: 12px; }
+.warehouse-south { display: inline-block; background: #e8f5e9; color: #27ae60; padding: 2px 10px; border-radius: 12px; font-size: 12px; }
+.alert-badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; max-width: 180px; overflow: hidden; text-overflow: ellipsis; }
+.alert-sufficient { background: #e8f5e9; color: #27ae60; }
+.alert-warning { background: #fff3e0; color: #e67e22; }
+.alert-critical { background: #fce4ec; color: #e74c3c; }
+.remaining-cell { font-weight: 700; text-align: center; }
+.remaining-negative { color: #e74c3c; }
+.remaining-low { color: #e67e22; }
+.remaining-ok { color: #27ae60; }
+.action-btns { display: flex; gap: 6px; }
+
+/* 渠道映射 */
+.section-title { font-size: 16px; font-weight: 600; margin: 20px 0 12px; color: #333; }
+.mapping-wrap { background: #fff; border-radius: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); padding: 16px 20px; margin-bottom: 20px; }
+.mapping-wrap table { margin-top: 8px; }
+.mapping-wrap tbody td { padding: 8px 10px; }
+.mapping-wrap thead th { font-size: 11px; }
+
+/* 模态框 */
+.modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.45); z-index: 1000; justify-content: center; align-items: flex-start; padding-top: 60px; }
+.modal-overlay.active { display: flex; }
+.modal { background: #fff; border-radius: 12px; width: 700px; max-height: 80vh; overflow-y: auto; box-shadow: 0 8px 30px rgba(0,0,0,0.18); }
+.modal-header { padding: 18px 24px; border-bottom: 1px solid #eee; display: flex; align-items: center; justify-content: space-between; }
+.modal-header h3 { font-size: 17px; }
+.modal-body { padding: 20px 24px; display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.modal-body .full-width { grid-column: 1 / -1; }
+.modal-body label { font-size: 12px; font-weight: 600; color: #666; display: block; margin-bottom: 4px; }
+.modal-body input, .modal-body select, .modal-body textarea { width: 100%; padding: 8px 12px; border: 1px solid #d0d5dd; border-radius: 6px; font-size: 13px; }
+.modal-body textarea { resize: vertical; min-height: 60px; }
+.modal-footer { padding: 16px 24px; border-top: 1px solid #eee; display: flex; gap: 10px; justify-content: flex-end; }
+.auto-badge { display: inline-block; font-size: 10px; background: #e8f0fe; color: #1a73e8; padding: 1px 6px; border-radius: 3px; margin-left: 6px; vertical-align: middle; }
+
+/* 订单面板 */
+.order-panel { background: #fff; border-radius: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); margin-bottom: 16px; overflow: hidden; }
+.order-panel-header { padding: 14px 20px; cursor: pointer; display: flex; align-items: center; gap: 10px; background: #f8f9fa; border-bottom: 1px solid #eee; user-select: none; }
+.order-panel-header:hover { background: #f0f2f5; }
+.order-panel-header .arrow { transition: transform 0.2s; font-size: 12px; }
+.order-panel-header.collapsed .arrow { transform: rotate(-90deg); }
+.order-panel-body { padding: 16px 20px; }
+.order-panel-body.hidden { display: none; }
+.order-badge { display: inline-block; background: #e8f0fe; color: #1a73e8; padding: 2px 8px; border-radius: 4px; font-size: 12px; margin: 0 4px; }
+.order-source-tag { font-size: 10px; background: #e8f5e9; color: #27ae60; padding: 1px 5px; border-radius: 3px; cursor: pointer; }
+.order-source-tag.manual { background: #fff3e0; color: #e67e22; }
+
+/* 空状态 */
+.empty-state { text-align: center; padding: 60px 0; color: #999; }
+.empty-state .icon { font-size: 48px; margin-bottom: 12px; }
+
+/* 只读模式 */
+body.readonly .edit-only { display: none !important; }
+
+/* 响应式 */
+@media (max-width: 1200px) {
+  .stats-grid { grid-template-columns: repeat(2, 1fr); }
+  .modal { width: 95%; }
+  .modal-body { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>船期舱位管理系统</h1>
+  <div class="subtitle">Shipment Space Management Dashboard</div>
+</header>
+
+<div class="container">
+  <!-- 统计卡片 -->
+  <div class="stats-grid">
+    <div class="stat-card"><div class="label">总航次数</div><div class="value" id="statVoyages">0</div></div>
+    <div class="stat-card"><div class="label">总舱位数</div><div class="value" id="statTotal">0</div></div>
+    <div class="stat-card"><div class="label">已抓取货量</div><div class="value warn" id="statUsed">0</div></div>
+    <div class="stat-card" id="statLoadCard"><div class="label">平均装载率（逐船）</div><div class="value" id="statRate">0%</div><div class="sub-note" id="statOverbook" style="display:none"></div></div>
+  </div>
+
+  <!-- 工具栏 -->
+  <div class="toolbar">
+    <input type="text" id="filterSearch" placeholder="搜索航线 / 船名航次 / 渠道...">
+    <select id="filterRoute"><option value="">全部航线</option></select>
+    <select id="filterPort"><option value="">全部起运港</option></select>
+    <select id="filterCountry"><option value="">全部国家</option></select>
+    <select id="filterWarehouse"><option value="">全部仓库</option></select>
+    <div class="ratio-config edit-only">
+      <span>每柜舱位:</span>
+      <input type="number" id="ratioInput" value="70" min="1" max="999" onchange="updateRatio()">
+    </div>
+    <span class="spacer"></span>
+    <button class="btn btn-outline btn-sm" onclick="resetFilters()">清除筛选</button>
+    <button class="btn btn-success btn-sm" onclick="exportCSV()">导出 CSV</button>
+    <button class="btn btn-primary edit-only" onclick="openAddModal()">+ 新增航次</button>
+    <button class="btn btn-danger btn-sm edit-only" onclick="clearAllData()">清空全部</button>
+    <input type="file" id="orderFileInput" accept=".xlsx,.xls" style="display:none" onchange="handleFileSelect(event)">
+    <button class="btn btn-outline btn-sm edit-only" onclick="document.getElementById('orderFileInput').click()" id="importBtn">导入订单</button>
+    <button class="btn btn-outline btn-sm edit-only" onclick="clearOrders()" id="clearOrderBtn" style="display:none">清除订单</button>
+  </div>
+
+  <!-- 主表格 -->
+  <div class="table-wrap">
+    <table id="mainTable">
+      <thead>
+        <tr>
+          <th style="width:40px">#</th>
+          <th class="col-backend">航线</th>
+          <th class="col-backend">船名航次</th>
+          <th class="col-backend">截单时间</th>
+          <th class="col-backend">拿柜数量 <span style="font-size:10px;color:#888">(柜)</span></th>
+          <th class="col-backend">起运港</th>
+          <th class="col-display">国家</th>
+          <th class="col-display">仓库</th>
+          <th class="col-display">渠道</th>
+          <th class="col-display">舱位总数</th>
+          <th class="col-display">系统抓取货量</th>
+          <th class="col-display">剩余舱位</th>
+          <th class="col-display">预警</th>
+          <th class="col-display">配载反馈</th>
+          <th style="width:120px" class="edit-only">操作</th>
+        </tr>
+      </thead>
+      <tbody id="tableBody"></tbody>
+    </table>
+    <div class="empty-state" id="emptyState" style="display:none"><div class="icon">📋</div><div>暂无数据，点击"新增航次"添加</div></div>
+  </div>
+
+  <!-- 订单汇总面板 -->
+  <div class="order-panel" id="orderPanel" style="display:none">
+    <div class="order-panel-header" onclick="toggleOrderPanel()">
+      <span class="arrow">▼</span>
+      <strong>订单汇总</strong>
+      <span id="orderStats" style="font-size:13px;color:#666"></span>
+      <span class="spacer"></span>
+      <button class="btn btn-success btn-sm edit-only" onclick="event.stopPropagation();applyAllOrders()" title="一键将订单运费汇总到舱位表">一键应用到舱位表</button>
+    </div>
+    <div class="order-panel-body" id="orderPanelBody">
+      <table>
+        <thead>
+          <tr>
+            <th>渠道</th>
+            <th>订单数</th>
+            <th>总方数</th>
+            <th>已测量方数</th>
+            <th>待发方数</th>
+            <th>舱位表匹配</th>
+          </tr>
+        </thead>
+        <tbody id="orderSummaryBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- 渠道映射表 -->
+  <div class="section-title edit-only">渠道对应标准</div>
+  <div class="mapping-wrap edit-only">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">
+      <span style="font-size:13px;color:#666">销售产品 → 对应渠道 映射表</span>
+      <span class="spacer"></span>
+      <button class="btn btn-outline btn-sm" onclick="addMappingRow()">+ 新增映射</button>
+    </div>
+    <table>
+      <thead><tr><th>销售产品</th><th>对应渠道</th><th style="width:60px">操作</th></tr></thead>
+      <tbody id="mappingBody"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- 新增/编辑模态框 -->
+<div class="modal-overlay edit-only" id="modalOverlay">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="modalTitle">新增航次</h3>
+      <button class="btn btn-outline btn-sm" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div>
+        <label>航线 <span style="color:#e74c3c">*</span></label>
+        <input type="text" id="formRoute" placeholder="如 ZIM/ZX2">
+      </div>
+      <div>
+        <label>船名航次 <span style="color:#e74c3c">*</span></label>
+        <input type="text" id="formVessel" placeholder="如 PELICAN I 13E">
+      </div>
+      <div>
+        <label>截单时间</label>
+        <input type="datetime-local" id="formCutoff">
+      </div>
+      <div>
+        <label>拿柜数量</label>
+        <input type="number" id="formContainers" placeholder="单位：柜" min="0" oninput="onContainersChange()">
+        <div class="ratio-hint" id="ratioHint">× 70 舱/柜 = 舱位自动计算</div>
+      </div>
+      <div>
+        <label>起运港</label>
+        <select id="formPort">
+          <option value="">请选择</option>
+          <option value="上海">上海</option>
+          <option value="宁波">宁波</option>
+          <option value="盐田">盐田</option>
+        </select>
+      </div>
+      <div>
+        <label>仓库 <span class="auto-badge">自动判定</span></label>
+        <input type="text" id="formWarehouse" readonly style="background:#f5f5f5;color:#888">
+      </div>
+      <div>
+        <label>国家</label>
+        <select id="formCountry">
+          <option value="">请选择</option>
+          <option value="美国">美国</option>
+          <option value="加拿大">加拿大</option>
+          <option value="墨西哥">墨西哥</option>
+        </select>
+      </div>
+      <div>
+        <label>渠道</label>
+        <select id="formChannel">
+          <option value="">请选择</option>
+          <option value="美森">美森</option>
+          <option value="以星/合德">以星/合德</option>
+          <option value="洛杉矶普船">洛杉矶普船</option>
+          <option value="洛杉矶特惠">洛杉矶特惠</option>
+          <option value="休斯顿">休斯顿</option>
+          <option value="奥克兰">奥克兰</option>
+          <option value="芝加哥">芝加哥</option>
+          <option value="多伦多">多伦多</option>
+        </select>
+      </div>
+      <div>
+        <label>舱位总数 <span class="auto-badge">柜数×比率</span></label>
+        <input type="number" id="formTotal" placeholder="拿柜数量 × 每柜舱位">
+      </div>
+      <div>
+        <label>系统抓取货量</label>
+        <input type="number" id="formUsed" placeholder="抓取的货物量">
+      </div>
+      <div>
+        <label>剩余舱位 <span class="auto-badge">自动计算</span></label>
+        <input type="text" id="formRemaining" readonly style="background:#f5f5f5;color:#888">
+      </div>
+      <div>
+        <label>预警信息</label>
+        <textarea id="formAlert" placeholder="如：舱位充足，需收货补货 / 配载需关注：提前截单 / 渠道需集货"></textarea>
+      </div>
+      <div class="full-width">
+        <label>配载反馈（手动填写）</label>
+        <textarea id="formFeedback" placeholder="如：预报20方 / 加柜1个 / 已截单"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal()">取消</button>
+      <button class="btn btn-primary" id="modalSaveBtn" onclick="saveEntry()">保存</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ==================== 只读模式检测 ====================
+// 默认只读模式，加 ?edit 参数可启用编辑功能
+const isReadonly = !window.location.search.includes('edit');
+
+// ==================== 数据层 ====================
+const STORAGE_KEY = 'shipping_data';
+const MAPPING_KEY = 'shipping_mapping';
+const RATIO_KEY = 'cabin_ratio';
+const DATA_VERSION = 2; // 更新数据版本号以自动清除旧缓存
+let data = [];
+let channelMapping = [];
+let editIndex = -1;
+let cabinRatio = 70;
+let manualTotalOverride = false;
+
+const defaultData = [
+  { route:'COSCO/AWE3', vessel:'EVER MACRO 1359E', cutoff:'2026-05-18T12:00', containers:1, port:'盐田', country:'美国', channel:'萨凡纳', total:70, used:0, alert:'', feedback:'' },
+  { route:'COSCO/AWE4', vessel:'OOCL LILAC 004E', cutoff:'2026-05-19T12:00', containers:1, port:'盐田', country:'美国', channel:'纽约', total:70, used:0, alert:'', feedback:'' },
+  { route:'COSCO/GME2', vessel:'OOCL ASIA 196E', cutoff:'2026-05-19T12:00', containers:1, port:'盐田', country:'美国', channel:'休斯顿', total:70, used:0, alert:'', feedback:'' },
+  { route:'COSCO/AAC4', vessel:'COSCO ITALY 082E', cutoff:'2026-05-20T12:00', containers:1, port:'宁波', country:'美国', channel:'洛杉矶普船', total:70, used:0, alert:'', feedback:'' },
+  { route:'HPL/WC5', vessel:'MAERSK KINLOSS 621E', cutoff:'2026-05-20T12:00', containers:1, port:'宁波', country:'美国', channel:'洛杉矶普船', total:70, used:0, alert:'', feedback:'' },
+  { route:'MAT/CLX', vessel:'LURLINE 100E', cutoff:'2026-05-21T12:00', containers:1, port:'宁波', country:'美国', channel:'美森', total:70, used:0, alert:'', feedback:'' },
+  { route:'HMM YML 共舱', vessel:'YM UPSURGENCE 0079E', cutoff:'2026-05-21T12:00', containers:1, port:'盐田', country:'美国', channel:'洛杉矶普船', total:70, used:0, alert:'', feedback:'' },
+  { route:'OOCL/PSX', vessel:'OOCL ATLANTA 173E', cutoff:'2026-05-21T12:00', containers:1, port:'盐田', country:'美国', channel:'洛杉矶普船', total:70, used:0, alert:'', feedback:'' },
+  { route:'EMC/HTW', vessel:'EVER MACH 1455-016E', cutoff:'2026-05-21T12:00', containers:1, port:'盐田', country:'美国', channel:'奥克兰', total:70, used:0, alert:'', feedback:'' },
+  { route:'COSCO/AWE4', vessel:'OOCL LILAC 004E', cutoff:'2026-05-21T12:00', containers:1, port:'上海', country:'美国', channel:'纽约', total:70, used:0, alert:'', feedback:'' },
+  { route:'MAT/MAX', vessel:'MATSON LANAI 054E', cutoff:'2026-05-22T12:00', containers:1, port:'宁波', country:'美国', channel:'美森', total:70, used:0, alert:'', feedback:'' },
+  { route:'ZIM/ZX2', vessel:'PELICAN I 13E', cutoff:'2026-05-22T12:00', containers:1, port:'上海', country:'美国', channel:'以星/合德', total:70, used:0, alert:'', feedback:'' },
+  { route:'ZIM/ZEX', vessel:'MISSISSIPPI  17E', cutoff:'2026-05-22T12:00', containers:1, port:'盐田', country:'美国', channel:'以星/合德', total:70, used:0, alert:'', feedback:'' },
+  { route:'HDW/HDS3', vessel:'ADAMASTOS  2609E', cutoff:'2026-05-22T12:00', containers:1, port:'南沙', country:'美国', channel:'以星/合德', total:70, used:0, alert:'', feedback:'' },
+  { route:'WHL/AP1', vessel:'WAN HAI A09 E016', cutoff:'2026-05-22T12:00', containers:1, port:'蛇口', country:'美国', channel:'洛杉矶普船', total:70, used:0, alert:'', feedback:'' },
+  { route:'OOCL/PVCS', vessel:'COSCO SHIPPING PANAMA 004E', cutoff:'2026-05-22T12:00', containers:1, port:'盐田', country:'美国', channel:'洛杉矶普船', total:70, used:0, alert:'', feedback:'' },
+  { route:'COSCO/AAC4', vessel:'COSCO ITALY 082E', cutoff:'2026-05-22T12:00', containers:1, port:'上海', country:'美国', channel:'洛杉矶普船', total:70, used:0, alert:'', feedback:'' },
+  { route:'EMC/NUE', vessel:'EVER FOREVER 1267-037E', cutoff:'2026-05-22T12:00', containers:1, port:'宁波', country:'美国', channel:'纽约', total:70, used:0, alert:'', feedback:'' },
+  { route:'COSCO/AAC', vessel:'CSCL SUMMER 074E', cutoff:'2026-05-22T12:00', containers:1, port:'宁波', country:'美国', channel:'纽约', total:70, used:0, alert:'', feedback:'' },
+  { route:'COSCO/AWE1', vessel:'EVER FOREVER 1267E', cutoff:'2026-05-22T12:00', containers:1, port:'宁波', country:'美国', channel:'萨凡纳', total:70, used:0, alert:'', feedback:'' },
+  { route:'MAT/CLX', vessel:'LURLINE 100E', cutoff:'2026-05-23T12:00', containers:1, port:'上海', country:'美国', channel:'美森', total:70, used:0, alert:'', feedback:'' },
+  { route:'OOCL/PVCS', vessel:'COSCO SHIPPING PANAMA 004E', cutoff:'2026-05-23T12:00', containers:1, port:'盐田', country:'美国', channel:'芝加哥', total:70, used:0, alert:'', feedback:'' },
+  { route:'EMC/CPS', vessel:'EVER LIVELY 1222E', cutoff:'2026-05-23T12:00', containers:1, port:'宁波', country:'美国', channel:'洛杉矶普船', total:70, used:0, alert:'', feedback:'' },
+  { route:'EMC/CPS', vessel:'EVER LIVELY 1222E', cutoff:'2026-05-23T12:00', containers:1, port:'宁波', country:'美国', channel:'奥克兰', total:70, used:0, alert:'', feedback:'' },
+  { route:'YML/PS6', vessel:'HMM RUBY 013E', cutoff:'2026-05-23T12:00', containers:1, port:'宁波', country:'美国', channel:'洛杉矶普船', total:70, used:0, alert:'', feedback:'' },
+  { route:'EMC/GME', vessel:'COSCO VIETNAM 108E', cutoff:'2026-05-23T12:00', containers:1, port:'宁波', country:'美国', channel:'休斯顿', total:70, used:0, alert:'', feedback:'' },
+  { route:'COSCO/CEN', vessel:'COSCO KAOHSIUNG 117E', cutoff:'2026-05-23T12:00', containers:1, port:'上海', country:'美国', channel:'纽约', total:70, used:0, alert:'', feedback:'' },
+  { route:'MAT/MAX', vessel:'MATSON LANAI 054E', cutoff:'2026-05-24T12:00', containers:1, port:'上海', country:'美国', channel:'美森', total:70, used:0, alert:'', feedback:'' },
+  { route:'ZIM/ZX2', vessel:'PELICAN I 13E', cutoff:'2026-05-24T12:00', containers:1, port:'宁波', country:'美国', channel:'以星/合德', total:70, used:0, alert:'', feedback:'' },
+  { route:'COSCO/CEN', vessel:'COSCO KAOHSIUNG 117E', cutoff:'2026-05-24T12:00', containers:1, port:'上海', country:'美国', channel:'洛杉矶普船', total:70, used:0, alert:'', feedback:'' },
+  { route:'COSCO/AAC', vessel:'CSCL SUMMER 074E', cutoff:'2026-05-24T12:00', containers:1, port:'宁波', country:'美国', channel:'洛杉矶普船', total:70, used:0, alert:'', feedback:'' },
+  { route:'COSCO/AAC', vessel:'CSCL SUMMER 074E', cutoff:'2026-05-24T12:00', containers:1, port:'宁波', country:'美国', channel:'芝加哥', total:70, used:0, alert:'', feedback:'' },
+  { route:'SML/CPX', vessel:'SM SHANGHAI 2604E', cutoff:'2026-05-24T12:00', containers:1, port:'宁波', country:'美国', channel:'洛杉矶普船', total:70, used:0, alert:'', feedback:'' },
+  { route:'COSCO/AWE3', vessel:'TRITON 1360E', cutoff:'2026-05-25T12:00', containers:1, port:'盐田', country:'美国', channel:'萨凡纳', total:70, used:0, alert:'', feedback:'' },
+  { route:'COSCO/AWE4', vessel:'COSCO DEVELOPMENT 081E', cutoff:'2026-05-26T12:00', containers:1, port:'盐田', country:'美国', channel:'纽约', total:70, used:0, alert:'', feedback:'' },
+  { route:'COSCO/GME2', vessel:'COSCO VIETNAM 108E', cutoff:'2026-05-26T12:00', containers:1, port:'盐田', country:'美国', channel:'休斯顿', total:70, used:0, alert:'', feedback:'' },
+  { route:'COSCO/AAC4', vessel:'OOCL POLAND 059E', cutoff:'2026-05-27T12:00', containers:1, port:'宁波', country:'美国', channel:'洛杉矶普船', total:70, used:0, alert:'', feedback:'' },
+  { route:'HPL/WC5', vessel:'COLORADO EXPRESS 622E', cutoff:'2026-05-27T12:00', containers:1, port:'宁波', country:'美国', channel:'洛杉矶普船', total:70, used:0, alert:'', feedback:'' },
+  { route:'MAT/CLX', vessel:'DANIEL K. INOUYE 098E', cutoff:'2026-05-28T12:00', containers:1, port:'宁波', country:'美国', channel:'美森', total:70, used:0, alert:'', feedback:'' },
+  { route:'HDW/HDS3', vessel:'HANSA DUBURG 2605E', cutoff:'2026-05-28T12:00', containers:1, port:'南沙', country:'美国', channel:'以星/合德', total:70, used:0, alert:'', feedback:'' },
+  { route:'EMC/HTW', vessel:'EVER MODE 1456-008E', cutoff:'2026-05-28T12:00', containers:1, port:'盐田', country:'美国', channel:'奥克兰', total:70, used:0, alert:'', feedback:'' },
+  { route:'MAT/MAX', vessel:'MATSON KAUAI 038E', cutoff:'2026-05-29T12:00', containers:1, port:'宁波', country:'美国', channel:'美森', total:70, used:0, alert:'', feedback:'' },
+  { route:'ZIM/ZX2', vessel:'ZIM FALCON 18E', cutoff:'2026-05-29T12:00', containers:1, port:'上海', country:'美国', channel:'以星/合德', total:70, used:0, alert:'', feedback:'' },
+  { route:'ZIM/ZEX', vessel:'DANUBE  22E', cutoff:'2026-05-29T12:00', containers:1, port:'盐田', country:'美国', channel:'以星/合德', total:70, used:0, alert:'', feedback:'' },
+  { route:'WHL/AP1', vessel:'WAN HAI A01 E018', cutoff:'2026-05-29T12:00', containers:1, port:'蛇口', country:'美国', channel:'洛杉矶普船', total:70, used:0, alert:'', feedback:'' },
+  { route:'OOCL/PSX', vessel:'OOCL LONDON 123E', cutoff:'2026-05-29T12:00', containers:1, port:'盐田', country:'美国', channel:'洛杉矶普船', total:70, used:0, alert:'', feedback:'' },
+  { route:'COSCO/AAC4', vessel:'OOCL POLAND 059E', cutoff:'2026-05-29T12:00', containers:1, port:'上海', country:'美国', channel:'洛杉矶普船', total:70, used:0, alert:'', feedback:'' },
+  { route:'COSCO/AWE2', vessel:'COSCO SHIPPING CAMELLIA 032E', cutoff:'2026-05-29T12:00', containers:1, port:'宁波', country:'美国', channel:'纽约', total:70, used:0, alert:'', feedback:'' },
+  { route:'COSCO/AWE1', vessel:'TOKYO TRIUMPH 1268E', cutoff:'2026-05-29T12:00', containers:1, port:'宁波', country:'美国', channel:'萨凡纳', total:70, used:0, alert:'', feedback:'' },
+  { route:'MAT/CLX', vessel:'DANIEL K. INOUYE 098E', cutoff:'2026-05-30T12:00', containers:1, port:'上海', country:'美国', channel:'美森', total:70, used:0, alert:'', feedback:'' },
+  { route:'OOCL/PVCS', vessel:'COSCO SHIPPING YANGPU 007E', cutoff:'2026-05-30T12:00', containers:1, port:'盐田', country:'美国', channel:'芝加哥', total:70, used:0, alert:'', feedback:'' },
+  { route:'EMC/CPS', vessel:'EVER LOGIC 1223E', cutoff:'2026-05-30T12:00', containers:1, port:'宁波', country:'美国', channel:'洛杉矶普船', total:70, used:0, alert:'', feedback:'' },
+  { route:'EMC/CPS', vessel:'EVER LOGIC 1223E', cutoff:'2026-05-30T12:00', containers:1, port:'宁波', country:'美国', channel:'奥克兰', total:70, used:0, alert:'', feedback:'' },
+  { route:'YML/PS4', vessel:'HMM TURQUOISE 010E', cutoff:'2026-05-30T12:00', containers:1, port:'宁波', country:'美国', channel:'洛杉矶普船', total:70, used:0, alert:'', feedback:'' },
+  { route:'EMC/GME', vessel:'ONE COSMOS 104E', cutoff:'2026-05-30T12:00', containers:1, port:'宁波', country:'美国', channel:'休斯顿', total:70, used:0, alert:'', feedback:'' },
+  { route:'COSCO/AWE4', vessel:'COSCO DEVELOPMENT 081E', cutoff:'2026-05-30T12:00', containers:1, port:'上海', country:'美国', channel:'纽约', total:70, used:0, alert:'', feedback:'' },
+  { route:'COSCO/AWE2', vessel:'COSCO SHIPPING CAMELLIA 032E', cutoff:'2026-05-30T12:00', containers:1, port:'上海', country:'美国', channel:'纽约', total:70, used:0, alert:'', feedback:'' },
+  { route:'COSCO/CEN', vessel:'COSCO EUROPE 113E', cutoff:'2026-05-30T12:00', containers:1, port:'上海', country:'美国', channel:'纽约', total:70, used:0, alert:'', feedback:'' },
+  { route:'COSCO/AAC', vessel:'CSCL EAST CHINA SEA 077E', cutoff:'2026-05-30T12:00', containers:1, port:'宁波', country:'美国', channel:'纽约', total:70, used:0, alert:'', feedback:'' },
+  { route:'MAT/MAX', vessel:'MATSON KAUAI 038E', cutoff:'2026-05-31T12:00', containers:1, port:'上海', country:'美国', channel:'美森', total:70, used:0, alert:'', feedback:'' },
+  { route:'ZIM/ZX2', vessel:'ZIM FALCON 18E', cutoff:'2026-05-31T12:00', containers:1, port:'宁波', country:'美国', channel:'以星/合德', total:70, used:0, alert:'', feedback:'' },
+  { route:'OOCL/PVCS', vessel:'COSCO SHIPPING YANGPU 007E', cutoff:'2026-05-31T12:00', containers:1, port:'盐田', country:'美国', channel:'洛杉矶普船', total:70, used:0, alert:'', feedback:'' },
+  { route:'COSCO/CEN', vessel:'COSCO EUROPE 113E', cutoff:'2026-05-31T12:00', containers:1, port:'上海', country:'美国', channel:'洛杉矶普船', total:70, used:0, alert:'', feedback:'' },
+  { route:'COSCO/AAC', vessel:'CSCL EAST CHINA SEA 077E', cutoff:'2026-05-31T12:00', containers:1, port:'宁波', country:'美国', channel:'洛杉矶普船', total:70, used:0, alert:'', feedback:'' },
+  { route:'COSCO/AAC', vessel:'CSCL EAST CHINA SEA 077E', cutoff:'2026-05-31T12:00', containers:1, port:'宁波', country:'美国', channel:'芝加哥', total:70, used:0, alert:'', feedback:'' },
+  { route:'SML/CPX', vessel:'SM KWANGYANG 2604E', cutoff:'2026-05-31T12:00', containers:1, port:'宁波', country:'美国', channel:'洛杉矶普船', total:70, used:0, alert:'', feedback:'' },
+  { route:'HMM YML 共舱', vessel:'YM UNIFORMITY 084E', cutoff:'2026-06-03T12:00', containers:1, port:'盐田', country:'美国', channel:'洛杉矶普船', total:70, used:0, alert:'', feedback:'' },
+  { route:'HPL/WC5', vessel:'DELAWARE EXPRESS 623E', cutoff:'2026-06-03T12:00', containers:1, port:'宁波', country:'美国', channel:'洛杉矶普船', total:70, used:0, alert:'', feedback:'' },
+  { route:'MAT/CLX', vessel:'MATSONIA 073E', cutoff:'2026-06-04T12:00', containers:1, port:'宁波', country:'美国', channel:'美森', total:70, used:0, alert:'', feedback:'' },
+  { route:'MAT/MAX', vessel:'MATSON OAHU 132E', cutoff:'2026-06-05T12:00', containers:1, port:'宁波', country:'美国', channel:'美森', total:70, used:0, alert:'', feedback:'' },
+  { route:'ZIM/ZX2', vessel:'ZIM EAGLE  20E', cutoff:'2026-06-05T12:00', containers:1, port:'上海', country:'美国', channel:'以星/合德', total:70, used:0, alert:'', feedback:'' },
+  { route:'ZIM/ZEX', vessel:'COLORADO  17E', cutoff:'2026-06-05T12:00', containers:1, port:'盐田', country:'美国', channel:'以星/合德', total:70, used:0, alert:'', feedback:'' },
+  { route:'HDW/HDS3', vessel:'G. CROWN 2605E', cutoff:'2026-06-05T12:00', containers:1, port:'南沙', country:'美国', channel:'以星/合德', total:70, used:0, alert:'', feedback:'' },
+  { route:'YML/PS3', vessel:'ONE HANNOVER 101E', cutoff:'2026-06-05T12:00', containers:1, port:'盐田', country:'美国', channel:'洛杉矶普船', total:70, used:0, alert:'', feedback:'' },
+  { route:'OOCL/PSX', vessel:'XIN FEI ZHOU 110E', cutoff:'2026-06-05T12:00', containers:1, port:'盐田', country:'美国', channel:'洛杉矶普船', total:70, used:0, alert:'', feedback:'' },
+  { route:'COSCO/SEA3', vessel:'XIN FEI ZHOU 110E', cutoff:'2026-06-05T12:00', containers:1, port:'盐田', country:'美国', channel:'纽约', total:70, used:0, alert:'', feedback:'' },
+  { route:'MAT/CLX', vessel:'MATSONIA 073E', cutoff:'2026-06-06T12:00', containers:1, port:'上海', country:'美国', channel:'美森', total:70, used:0, alert:'', feedback:'' },
+  { route:'EMC/CPS', vessel:'EVER LEADING 1224E', cutoff:'2026-06-06T12:00', containers:1, port:'宁波', country:'美国', channel:'洛杉矶普船', total:70, used:0, alert:'', feedback:'' },
+  { route:'EMC/CPS', vessel:'EVER LEADING 1224E', cutoff:'2026-06-06T12:00', containers:1, port:'宁波', country:'美国', channel:'奥克兰', total:70, used:0, alert:'', feedback:'' },
+  { route:'YML/PS6', vessel:'HMM TOPAZ 012E', cutoff:'2026-06-06T12:00', containers:1, port:'宁波', country:'美国', channel:'洛杉矶普船', total:70, used:0, alert:'', feedback:'' },
+  { route:'COSCO/AWE4', vessel:'OOCL DAFFODIL 005E', cutoff:'2026-06-06T12:00', containers:1, port:'上海', country:'美国', channel:'纽约', total:70, used:0, alert:'', feedback:'' },
+  { route:'EMC/NUE', vessel:'EVER FORWARD 1269-030E', cutoff:'2026-06-06T12:00', containers:1, port:'宁波', country:'美国', channel:'纽约', total:70, used:0, alert:'', feedback:'' },
+  { route:'COSCO/CEN', vessel:'COSCO AFRICA 102E', cutoff:'2026-06-06T12:00', containers:1, port:'上海', country:'美国', channel:'纽约', total:70, used:0, alert:'', feedback:'' },
+  { route:'COSCO/AWE1', vessel:'EVER FORWARD 1269-030E', cutoff:'2026-06-06T12:00', containers:1, port:'宁波', country:'美国', channel:'萨凡纳', total:70, used:0, alert:'', feedback:'' },
+  { route:'MAT/MAX', vessel:'MATSON OAHU 132E', cutoff:'2026-06-07T12:00', containers:1, port:'上海', country:'美国', channel:'美森', total:70, used:0, alert:'', feedback:'' },
+  { route:'ZIM/ZX2', vessel:'ZIM EAGLE  20E', cutoff:'2026-06-07T12:00', containers:1, port:'宁波', country:'美国', channel:'以星/合德', total:70, used:0, alert:'', feedback:'' },
+  { route:'WHL/AP1', vessel:'WAN HAI A05 016E', cutoff:'2026-06-07T12:00', containers:1, port:'蛇口', country:'美国', channel:'洛杉矶普船', total:70, used:0, alert:'', feedback:'' },
+  { route:'OOCL/PVCS', vessel:'CSCL INDIAN OCEAN 077E', cutoff:'2026-06-07T12:00', containers:1, port:'盐田', country:'美国', channel:'洛杉矶普船', total:70, used:0, alert:'', feedback:'' },
+  { route:'OOCL/PVCS', vessel:'CSCL INDIAN OCEAN 077E', cutoff:'2026-06-07T12:00', containers:1, port:'盐田', country:'美国', channel:'芝加哥', total:70, used:0, alert:'', feedback:'' },
+  { route:'EMC/AUG', vessel:'ONE HUMEN 100E', cutoff:'2026-06-07T12:00', containers:1, port:'盐田', country:'美国', channel:'休斯顿', total:70, used:0, alert:'', feedback:'' },
+  { route:'COSCO/CEN', vessel:'COSCO AFRICA 102E', cutoff:'2026-06-07T12:00', containers:1, port:'上海', country:'美国', channel:'洛杉矶普船', total:70, used:0, alert:'', feedback:'' },
+  { route:'SML/CPX', vessel:'SM YANTIAN 2604E', cutoff:'2026-06-07T12:00', containers:1, port:'宁波', country:'美国', channel:'洛杉矶普船', total:70, used:0, alert:'', feedback:'' },
+  { route:'SML/CPX', vessel:'SM YANTIAN 2604E', cutoff:'2026-06-07T12:00', containers:1, port:'宁波', country:'美国', channel:'芝加哥', total:70, used:0, alert:'', feedback:'' },
+  { route:'COSCO/AAC', vessel:'COSCO TAICANG 109W', cutoff:'2026-06-07T12:00', containers:1, port:'宁波', country:'美国', channel:'纽约', total:70, used:0, alert:'', feedback:'' },
+  { route:'EMC/AUG', vessel:'ONE HUMEN 100E', cutoff:'2026-06-07T12:00', containers:1, port:'宁波', country:'美国', channel:'休斯顿', total:70, used:0, alert:'', feedback:'' },
+  { route:'COSCO/AWE3', vessel:'EVER META 1362E', cutoff:'2026-06-08T12:00', containers:1, port:'盐田', country:'美国', channel:'萨凡纳', total:70, used:0, alert:'', feedback:'' },
+  { route:'COSCO/AAC4', vessel:'OOCL BRUSSELS 070E', cutoff:'2026-06-10T12:00', containers:1, port:'宁波', country:'美国', channel:'芝加哥', total:70, used:0, alert:'', feedback:'' },
+  { route:'COSCO/AAC4', vessel:'OOCL BRUSSELS 070E', cutoff:'2026-06-10T12:00', containers:1, port:'宁波', country:'美国', channel:'洛杉矶普船', total:70, used:0, alert:'', feedback:'' },
+  { route:'HPL/WC5', vessel:'MISSOURI EXPRESS 624E', cutoff:'2026-06-10T12:00', containers:1, port:'宁波', country:'美国', channel:'洛杉矶普船', total:70, used:0, alert:'', feedback:'' },
+  { route:'MAT/CLX', vessel:'MATSON WAIKIKI 025E', cutoff:'2026-06-11T12:00', containers:1, port:'宁波', country:'美国', channel:'美森', total:70, used:0, alert:'', feedback:'' },
+  { route:'COSCO/AAC4', vessel:'OOCL BRUSSELS 070E', cutoff:'2026-06-12T12:00', containers:1, port:'上海', country:'美国', channel:'洛杉矶普船', total:70, used:0, alert:'', feedback:'' },
+  { route:'MAT/MAX', vessel:'MANUKAI 256E', cutoff:'2026-06-12T12:00', containers:1, port:'宁波', country:'美国', channel:'美森', total:70, used:0, alert:'', feedback:'' },
+  { route:'ZIM/ZX2', vessel:'ZIM ALBATROSS  15E', cutoff:'2026-06-12T12:00', containers:1, port:'上海', country:'美国', channel:'以星/合德', total:70, used:0, alert:'', feedback:'' },
+  { route:'ZIM/ZEX', vessel:'MACKENZIE  18E', cutoff:'2026-06-12T12:00', containers:1, port:'盐田', country:'美国', channel:'以星/合德', total:70, used:0, alert:'', feedback:'' },
+  { route:'HDW/HDS3', vessel:'HELGOLAND 2605E', cutoff:'2026-06-12T12:00', containers:1, port:'南沙', country:'美国', channel:'以星/合德', total:70, used:0, alert:'', feedback:'' },
+  { route:'YML/PS3', vessel:'MOL COURAGE 067E', cutoff:'2026-06-12T12:00', containers:1, port:'盐田', country:'美国', channel:'洛杉矶普船', total:70, used:0, alert:'', feedback:'' },
+  { route:'OOCL/PSX', vessel:'OOCL ROTTERDAM 164E', cutoff:'2026-06-12T12:00', containers:1, port:'盐田', country:'美国', channel:'洛杉矶普船', total:70, used:0, alert:'', feedback:'' },
+  { route:'COSCO/SEA3', vessel:'OOCL ROTTERDAM 164E', cutoff:'2026-06-12T12:00', containers:1, port:'盐田', country:'美国', channel:'纽约', total:70, used:0, alert:'', feedback:'' },
+  { route:'EMC/NUE2', vessel:'OOCL FRANCE 070E', cutoff:'2026-06-12T12:00', containers:1, port:'宁波', country:'美国', channel:'纽约', total:70, used:0, alert:'', feedback:'' },
+  { route:'MAT/CLX', vessel:'MATSON WAIKIKI 025E', cutoff:'2026-06-13T12:00', containers:1, port:'上海', country:'美国', channel:'美森', total:70, used:0, alert:'', feedback:'' },
+  { route:'EMC/CPS', vessel:'EVER LEGACY 1225E', cutoff:'2026-06-13T12:00', containers:1, port:'宁波', country:'美国', channel:'洛杉矶普船', total:70, used:0, alert:'', feedback:'' },
+  { route:'EMC/CPS', vessel:'EVER LEGACY 1225E', cutoff:'2026-06-13T12:00', containers:1, port:'宁波', country:'美国', channel:'奥克兰', total:70, used:0, alert:'', feedback:'' },
+  { route:'COSCO/CEN', vessel:'COSCO OCEANIA 114E', cutoff:'2026-06-13T12:00', containers:1, port:'上海', country:'美国', channel:'纽约', total:70, used:0, alert:'', feedback:'' },
+  { route:'COSCO/AAC', vessel:'COSCO SHIPPING PEONY 038E', cutoff:'2026-06-13T12:00', containers:1, port:'宁波', country:'美国', channel:'纽约', total:70, used:0, alert:'', feedback:'' },
+  { route:'COSCO/AWE1', vessel:'EVER FUTURE 1270E', cutoff:'2026-06-13T12:00', containers:1, port:'宁波', country:'美国', channel:'萨凡纳', total:70, used:0, alert:'', feedback:'' },
+  { route:'MAT/MAX', vessel:'MANUKAI 256E', cutoff:'2026-06-14T12:00', containers:1, port:'上海', country:'美国', channel:'美森', total:70, used:0, alert:'', feedback:'' },
+  { route:'ZIM/ZX2', vessel:'ZIM ALBATROSS  15E', cutoff:'2026-06-14T12:00', containers:1, port:'宁波', country:'美国', channel:'以星/合德', total:70, used:0, alert:'', feedback:'' },
+  { route:'WHL/AP1', vessel:'WAN HAI A03 016E', cutoff:'2026-06-14T12:00', containers:1, port:'蛇口', country:'美国', channel:'洛杉矶普船', total:70, used:0, alert:'', feedback:'' },
+  { route:'OOCL/PVCS', vessel:'OOCL BAUHINIA 012E', cutoff:'2026-06-14T12:00', containers:1, port:'盐田', country:'美国', channel:'洛杉矶普船', total:70, used:0, alert:'', feedback:'' },
+  { route:'OOCL/PVCS', vessel:'OOCL BAUHINIA 012E', cutoff:'2026-06-14T12:00', containers:1, port:'盐田', country:'美国', channel:'芝加哥', total:70, used:0, alert:'', feedback:'' },
+  { route:'EMC/AUG', vessel:'CONTI CORTESIA 013E', cutoff:'2026-06-14T12:00', containers:1, port:'盐田', country:'美国', channel:'休斯顿', total:70, used:0, alert:'', feedback:'' },
+  { route:'COSCO/CEN', vessel:'COSCO OCEANIA 114E', cutoff:'2026-06-14T12:00', containers:1, port:'上海', country:'美国', channel:'洛杉矶普船', total:70, used:0, alert:'', feedback:'' },
+  { route:'COSCO/AAC', vessel:'COSCO SHIPPING PEONY 038E', cutoff:'2026-06-14T12:00', containers:1, port:'宁波', country:'美国', channel:'洛杉矶普船', total:70, used:0, alert:'', feedback:'' },
+  { route:'COSCO/AAC', vessel:'COSCO SHIPPING PEONY 038E', cutoff:'2026-06-14T12:00', containers:1, port:'宁波', country:'美国', channel:'芝加哥', total:70, used:0, alert:'', feedback:'' },
+  { route:'SML/CPX', vessel:'SM LONG BEACH 2604E', cutoff:'2026-06-14T12:00', containers:1, port:'宁波', country:'美国', channel:'洛杉矶普船', total:70, used:0, alert:'', feedback:'' },
+  { route:'COSCO/AWE2', vessel:'OOCL FRANCE 070E', cutoff:'2026-06-14T12:00', containers:1, port:'上海', country:'美国', channel:'纽约', total:70, used:0, alert:'', feedback:'' },
+  { route:'EMC/AUG', vessel:'CONTI CORTESIA 013E', cutoff:'2026-06-14T12:00', containers:1, port:'宁波', country:'美国', channel:'休斯顿', total:70, used:0, alert:'', feedback:'' },
+  { route:'COSCO/AWE3', vessel:'TAIPEI TRIUMPH 1363E', cutoff:'2026-06-15T12:00', containers:1, port:'盐田', country:'美国', channel:'萨凡纳', total:70, used:0, alert:'', feedback:'' },
+  { route:'COSCO/AAC4', vessel:'COSCO BELGIUM 086E', cutoff:'2026-06-17T12:00', containers:1, port:'宁波', country:'美国', channel:'洛杉矶普船', total:70, used:0, alert:'', feedback:'' },
+  { route:'COSCO/AAC4', vessel:'COSCO BELGIUM 086E', cutoff:'2026-06-19T12:00', containers:1, port:'上海', country:'美国', channel:'洛杉矶普船', total:70, used:0, alert:'', feedback:'' },
+  { route:'ZIM/ZEX', vessel:'GANGES 19E', cutoff:'2026-06-19T12:00', containers:1, port:'盐田', country:'美国', channel:'以星/合德', total:70, used:0, alert:'', feedback:'' },
+  { route:'YML/PS3', vessel:'ONE CONTRIBUTION 066E', cutoff:'2026-06-19T12:00', containers:1, port:'盐田', country:'美国', channel:'洛杉矶普船', total:70, used:0, alert:'', feedback:'' },
+  { route:'OOCL/PSX', vessel:'OOCL UTAH 085E', cutoff:'2026-06-19T12:00', containers:1, port:'盐田', country:'美国', channel:'洛杉矶普船', total:70, used:0, alert:'', feedback:'' },
+  { route:'COSCO/SEA3', vessel:'OOCL UTAH 085E', cutoff:'2026-06-19T12:00', containers:1, port:'盐田', country:'美国', channel:'纽约', total:70, used:0, alert:'', feedback:'' },
+  { route:'EMC/NUE2', vessel:'COSCO SHIPPING ORCHID 034E', cutoff:'2026-06-19T12:00', containers:1, port:'宁波', country:'美国', channel:'纽约', total:70, used:0, alert:'', feedback:'' },
+  { route:'COSCO/AWE4', vessel:'OOCL TULIP 004E', cutoff:'2026-06-20T12:00', containers:1, port:'上海', country:'美国', channel:'纽约', total:70, used:0, alert:'', feedback:'' },
+  { route:'COSCO/AWE1', vessel:'EVER FAVOR 1271E', cutoff:'2026-06-20T12:00', containers:1, port:'宁波', country:'美国', channel:'萨凡纳', total:70, used:0, alert:'', feedback:'' },
+  { route:'OOCL/PVCS', vessel:'COSCO SHIPPING CARNATION 007E', cutoff:'2026-06-21T12:00', containers:1, port:'盐田', country:'美国', channel:'洛杉矶普船', total:70, used:0, alert:'', feedback:'' },
+  { route:'OOCL/PVCS', vessel:'COSCO SHIPPING CARNATION 007E', cutoff:'2026-06-21T12:00', containers:1, port:'盐田', country:'美国', channel:'芝加哥', total:70, used:0, alert:'', feedback:'' },
+  { route:'EMC/AUG', vessel:'SEASPAN BENEFACTOR 076E', cutoff:'2026-06-21T12:00', containers:1, port:'盐田', country:'美国', channel:'休斯顿', total:70, used:0, alert:'', feedback:'' },
+  { route:'COSCO/AWE2', vessel:'COSCO SHIPPING ORCHID 034E', cutoff:'2026-06-21T12:00', containers:1, port:'上海', country:'美国', channel:'纽约', total:70, used:0, alert:'', feedback:'' },
+  { route:'COSCO/CEN', vessel:'CSCL SOUTH CHINA  083E', cutoff:'2026-06-21T12:00', containers:1, port:'上海', country:'美国', channel:'纽约', total:70, used:0, alert:'', feedback:'' },
+  { route:'COSCO/AAC', vessel:'COSCO SHIPPING JASMINE 039E', cutoff:'2026-06-21T12:00', containers:1, port:'宁波', country:'美国', channel:'纽约', total:70, used:0, alert:'', feedback:'' },
+  { route:'EMC/AUG', vessel:'SEASPAN BENEFACTOR 076E', cutoff:'2026-06-21T12:00', containers:1, port:'宁波', country:'美国', channel:'休斯顿', total:70, used:0, alert:'', feedback:'' },
+  { route:'COSCO/AWE3', vessel:'EVER MUSE 1364E', cutoff:'2026-06-22T12:00', containers:1, port:'盐田', country:'美国', channel:'萨凡纳', total:70, used:0, alert:'', feedback:'' },
+  { route:'ZIM/ZEX', vessel:'NESTOS 17E', cutoff:'2026-06-26T12:00', containers:1, port:'盐田', country:'美国', channel:'以星/合德', total:70, used:0, alert:'', feedback:'' },
+  { route:'YML/PS3', vessel:'ONE COMMITMENT 075E', cutoff:'2026-06-26T12:00', containers:1, port:'盐田', country:'美国', channel:'洛杉矶普船', total:70, used:0, alert:'', feedback:'' },
+  { route:'OOCL/PSX', vessel:'XIN DA YANG ZHOU 108E', cutoff:'2026-06-26T12:00', containers:1, port:'盐田', country:'美国', channel:'洛杉矶普船', total:70, used:0, alert:'', feedback:'' },
+  { route:'COSCO/SEA3', vessel:'XIN DA YANG ZHOU 108E', cutoff:'2026-06-26T12:00', containers:1, port:'盐田', country:'美国', channel:'纽约', total:70, used:0, alert:'', feedback:'' },
+  { route:'EMC/GME', vessel:'OOCL EUROPE 213E', cutoff:'2026-06-26T12:00', containers:1, port:'盐田', country:'美国', channel:'休斯顿', total:70, used:0, alert:'', feedback:'' },
+  { route:'COSCO/AWE4', vessel:'OOCL MAGNOLIA 005E', cutoff:'2026-06-26T12:00', containers:1, port:'上海', country:'美国', channel:'纽约', total:70, used:0, alert:'', feedback:'' },
+  { route:'EMC/NUE2', vessel:'COSCO SHIPPING LOTUS 033E', cutoff:'2026-06-26T12:00', containers:1, port:'宁波', country:'美国', channel:'纽约', total:70, used:0, alert:'', feedback:'' },
+  { route:'COSCO/AWE2', vessel:'COSCO SHIPPING LOTUS 033E', cutoff:'2026-06-27T12:00', containers:1, port:'上海', country:'美国', channel:'纽约', total:70, used:0, alert:'', feedback:'' },
+  { route:'COSCO/CEN', vessel:'CSCL AUTUMN 073E', cutoff:'2026-06-27T12:00', containers:1, port:'上海', country:'美国', channel:'纽约', total:70, used:0, alert:'', feedback:'' },
+  { route:'COSCO/AAC', vessel:'COSCO TAICANG 110E', cutoff:'2026-06-27T12:00', containers:1, port:'宁波', country:'美国', channel:'纽约', total:70, used:0, alert:'', feedback:'' },
+  { route:'COSCO/AWE1', vessel:'EVER FAST 1272E', cutoff:'2026-06-27T12:00', containers:1, port:'宁波', country:'美国', channel:'萨凡纳', total:70, used:0, alert:'', feedback:'' },
+  { route:'EMC/AUG', vessel:'EVER SALUTE 128E', cutoff:'2026-06-27T12:00', containers:1, port:'宁波', country:'美国', channel:'休斯顿', total:70, used:0, alert:'', feedback:'' },
+  { route:'OOCL/PVCS', vessel:'OOCL VIOLET 010E', cutoff:'2026-06-28T12:00', containers:1, port:'盐田', country:'美国', channel:'洛杉矶普船', total:70, used:0, alert:'', feedback:'' },
+  { route:'OOCL/PVCS', vessel:'OOCL VIOLET 010E', cutoff:'2026-06-28T12:00', containers:1, port:'盐田', country:'美国', channel:'芝加哥', total:70, used:0, alert:'', feedback:'' },
+  { route:'COSCO/AWE3', vessel:'TAMPA TRIUMPH 1365E', cutoff:'2026-06-29T12:00', containers:1, port:'盐田', country:'美国', channel:'萨凡纳', total:70, used:0, alert:'', feedback:'' },
+];
+
+const defaultMapping = [
+  { product:'半月A/B', channel:'美森' },
+  { product:'半月C', channel:'以星/合德' },
+  { product:'美国专线洛杉矶自提KG/头程/卡派/海派/海卡/代发KG CBM', channel:'洛杉矶普船' },
+  { product:'美国专线洛杉矶特惠KG/CBM', channel:'洛杉矶特惠' },
+  { product:'美国专线休斯顿卡派KG/CBM', channel:'休斯顿' },
+  { product:'美国专线奥克兰卡派KG/海卡KG CBM', channel:'奥克兰' },
+];
+
+function loadData() {
+  const storedVersion = localStorage.getItem('shipping_data_version');
+  const raw = localStorage.getItem(STORAGE_KEY);
+  // 版本不匹配时丢弃旧缓存，使用新的默认数据
+  data = (raw && storedVersion == DATA_VERSION) ? JSON.parse(raw) : JSON.parse(JSON.stringify(defaultData));
+  localStorage.setItem('shipping_data_version', DATA_VERSION);
+  const rawMap = localStorage.getItem(MAPPING_KEY);
+  channelMapping = rawMap ? JSON.parse(rawMap) : JSON.parse(JSON.stringify(defaultMapping));
+  const savedRatio = localStorage.getItem(RATIO_KEY);
+  cabinRatio = savedRatio ? parseInt(savedRatio) : 70;
+  document.getElementById('ratioInput').value = cabinRatio;
+}
+
+function saveData() {
+  if (isReadonly) return;
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  localStorage.setItem(MAPPING_KEY, JSON.stringify(channelMapping));
+}
+
+// ==================== 订单数据 ====================
+let orderData = []; // 导入的订单原始数据
+let orderChannelSummary = {}; // { 渠道名: { count, totalCbm, measuredCbm, pendingCbm } }
+let useOrderDataForSchedule = false; // 是否用订单数据自动填充系统抓取货量
+
+// 销售产品关键词 → 渠道映射 (用于自动匹配导入的订单)
+function matchChannelFromProduct(salesProduct) {
+  const s = (salesProduct || '').toLowerCase();
+  const rules = [
+    { keys: ['半月签c', '半月提c', '半月a', '半月b', '半月c'], channel: '以星/合德' },
+    { keys: ['半月签a', '半月提a', '半月签b', '半月提b', '美森'], channel: '美森' },
+    { keys: ['洛杉矶特惠'], channel: '洛杉矶特惠' },
+    { keys: ['洛杉矶卡派', '洛杉矶海卡', '洛杉矶自提', '洛杉矶头程', '洛杉矶海派', '洛杉矶代发'], channel: '洛杉矶普船' },
+    { keys: ['休斯顿'], channel: '休斯顿' },
+    { keys: ['奥克兰'], channel: '奥克兰' },
+    { keys: ['芝加哥'], channel: '芝加哥' },
+    { keys: ['纽约'], channel: '纽约' },
+    { keys: ['萨凡纳'], channel: '萨凡纳' },
+  ];
+  for (const rule of rules) {
+    for (const key of rule.keys) {
+      if (s.includes(key.toLowerCase())) return rule.channel;
+    }
+  }
+  return '';
+}
+
+// ==================== 业务逻辑 ====================
+function updateRatio() {
+  cabinRatio = parseInt(document.getElementById('ratioInput').value) || 70;
+  if (cabinRatio < 1) cabinRatio = 1;
+  document.getElementById('ratioInput').value = cabinRatio;
+  localStorage.setItem(RATIO_KEY, cabinRatio);
+  document.getElementById('ratioHint').textContent = `× ${cabinRatio} 舱/柜 = 舱位自动计算`;
+  // 如果表单已打开，重新计算
+  if (document.getElementById('modalOverlay').classList.contains('active')) {
+    onContainersChange();
+  }
+}
+
+function onContainersChange() {
+  const containers = parseInt(document.getElementById('formContainers').value) || 0;
+  if (!manualTotalOverride) {
+    document.getElementById('formTotal').value = containers * cabinRatio;
+  }
+  updateFormAuto();
+}
+
+// 当用户手动修改舱位总数时，标记为手动覆盖，不再跟随柜数自动计算
+function onTotalManualChange() {
+  manualTotalOverride = true;
+  updateFormAuto();
+}
+
+function getWarehouse(port) {
+  if (port === '上海' || port === '宁波') return '华东';
+  if (port === '盐田') return '华南';
+  return '';
+}
+
+function getRemaining(item) {
+  return (item.total || 0) - (item.used || 0);
+}
+
+function isExpired(cutoff) {
+  if (!cutoff) return false;
+  return new Date(cutoff) < new Date();
+}
+
+function getRemainingClass(remaining, total) {
+  if (remaining < 0) return 'remaining-negative';
+  if (total > 0 && remaining < total * 0.1) return 'remaining-low';
+  return 'remaining-ok';
+}
+
+function getAlertClass(remaining, total, alertText) {
+  if (alertText && alertText.includes('加柜') || alertText.includes('临时')) return 'alert-critical';
+  if (remaining <= 0) return 'alert-critical';
+  if (total > 0 && remaining < total * 0.1) return 'alert-warning';
+  return 'alert-sufficient';
+}
+
+// ==================== 渲染 ====================
+const routeOptions = [...new Set(defaultData.map(d => d.route))];
+
+function updateFilterOptions() {
+  const routes = [...new Set(data.map(d => d.route))].sort();
+  const ports = [...new Set(data.map(d => d.port).filter(Boolean))].sort();
+  const countries = [...new Set(data.map(d => d.country).filter(Boolean))].sort();
+  const warehouses = [...new Set(data.map(d => getWarehouse(d.port)).filter(Boolean))].sort();
+
+  function fillSelect(id, options) {
+    const sel = document.getElementById(id);
+    const currentValue = sel.value;
+    sel.innerHTML = `<option value="">${sel.options[0]?.text || '全部'}</option>` + options.map(o => `<option value="${o}">${o}</option>`).join('');
+    sel.value = currentValue;
+  }
+  fillSelect('filterRoute', routes);
+  fillSelect('filterPort', ports);
+  fillSelect('filterCountry', countries);
+  fillSelect('filterWarehouse', warehouses);
+}
+
+function renderTable() {
+  // 按截单时间降序排列（最新的在最上面），无截单时间的排在最后
+  data.sort((a, b) => {
+    if (!a.cutoff && !b.cutoff) return 0;
+    if (!a.cutoff) return 1;
+    if (!b.cutoff) return -1;
+    return new Date(b.cutoff) - new Date(a.cutoff);
+  });
+
+  const tbody = document.getElementById('tableBody');
+  const searchTerm = document.getElementById('filterSearch').value.toLowerCase();
+  const filterRoute = document.getElementById('filterRoute').value;
+  const filterPort = document.getElementById('filterPort').value;
+  const filterCountry = document.getElementById('filterCountry').value;
+  const filterWarehouse = document.getElementById('filterWarehouse').value;
+
+  let filtered = data.filter((item, idx) => {
+    item._idx = idx;
+    if (searchTerm && !(item.route + item.vessel + item.channel + item.country).toLowerCase().includes(searchTerm)) return false;
+    if (filterRoute && item.route !== filterRoute) return false;
+    if (filterPort && item.port !== filterPort) return false;
+    if (filterCountry && item.country !== filterCountry) return false;
+    if (filterWarehouse && getWarehouse(item.port) !== filterWarehouse) return false;
+    return true;
+  });
+
+  if (filtered.length === 0) {
+    tbody.innerHTML = '';
+    document.getElementById('emptyState').style.display = 'block';
+  } else {
+    document.getElementById('emptyState').style.display = 'none';
+    tbody.innerHTML = filtered.map((item, i) => {
+      const remaining = getRemaining(item);
+      const warehouse = getWarehouse(item.port);
+      const expired = isExpired(item.cutoff);
+      const remClass = getRemainingClass(remaining, item.total);
+      const alertClass = getAlertClass(remaining, item.total, item.alert);
+      const wTag = warehouse === '华东' ? 'warehouse-east' : warehouse === '华南' ? 'warehouse-south' : '';
+      const cutoffDisplay = item.cutoff ? new Date(item.cutoff).toLocaleString('zh-CN', {month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}) : '';
+
+      return `<tr class="${expired ? 'expired' : ''}">
+        <td>${i + 1}</td>
+        <td>${item.route || ''}</td>
+        <td>${item.vessel || ''}</td>
+        <td>${cutoffDisplay}</td>
+        <td title="${item.containers || 0} 柜 × ${cabinRatio} 舱/柜 = ${(item.containers || 0) * cabinRatio} 舱位">${item.containers || 0}</td>
+        <td>${item.port || ''}</td>
+        <td>${item.country || ''}</td>
+        <td class="warehouse-tag"><span class="${wTag}">${warehouse}</span></td>
+        <td>${item.channel || ''}</td>
+        <td>${item.total || 0}</td>
+        <td>${useOrderDataForSchedule && orderChannelSummary[item.channel] ? `<span title="来自订单汇总" style="color:#27ae60">${item.used || 0}</span>` : (item.used || 0)}</td>
+        <td class="remaining-cell ${remClass}">${remaining}</td>
+        <td>${item.alert ? `<span class="alert-badge ${alertClass}">${item.alert}</span>` : ''}</td>
+        <td style="max-width:150px;overflow:hidden;text-overflow:ellipsis" title="${item.feedback || ''}">${item.feedback || ''}</td>
+        <td class="action-btns edit-only">
+          <button class="btn btn-outline btn-sm" onclick="openEditModal(${item._idx})" title="编辑">✎</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteEntry(${item._idx})" title="删除">✕</button>
+        </td>
+      </tr>`;
+    }).join('');
+  }
+
+  updateStats();
+}
+
+function renderMapping() {
+  document.getElementById('mappingBody').innerHTML = channelMapping.map((m, i) => `
+    <tr>
+      <td contenteditable="true" onblur="updateMapping(${i},'product',this.textContent)">${m.product}</td>
+      <td contenteditable="true" onblur="updateMapping(${i},'channel',this.textContent)">${m.channel}</td>
+      <td><button class="btn btn-danger btn-sm" onclick="deleteMapping(${i})">✕</button></td>
+    </tr>
+  `).join('');
+}
+
+function updateMapping(idx, field, value) {
+  channelMapping[idx][field] = value;
+  saveData();
+}
+
+function deleteMapping(idx) {
+  channelMapping.splice(idx, 1);
+  saveData();
+  renderMapping();
+}
+
+function addMappingRow() {
+  channelMapping.push({ product:'新产品', channel:'对应渠道' });
+  saveData();
+  renderMapping();
+}
+
+function updateStats() {
+  document.getElementById('statVoyages').textContent = data.length;
+  document.getElementById('statTotal').textContent = data.reduce((s, d) => s + (d.total || 0), 0);
+  const totalUsedInTable = data.reduce((s, d) => s + (d.used || 0), 0);
+  const usedEl = document.getElementById('statUsed');
+  if (useOrderDataForSchedule && orderData.length > 0) {
+    usedEl.textContent = totalUsedInTable.toFixed(0);
+    usedEl.title = '来源：订单汇总（已测量+转运方数汇总）';
+  } else {
+    usedEl.textContent = totalUsedInTable;
+    usedEl.title = '';
+  }
+
+  // 逐船装载率取平均，而非总货量/总舱位（加权会掩盖小船的满载状态）
+  const shipsWithSpace = data.filter(d => (d.total || 0) > 0);
+  const avgRate = shipsWithSpace.length > 0
+    ? Math.round(shipsWithSpace.reduce((s, d) => s + ((d.used || 0) / d.total * 100), 0) / shipsWithSpace.length)
+    : 0;
+
+  document.getElementById('statRate').textContent = avgRate + '%';
+
+  // 超载航次统计
+  const overbooked = data.filter(d => (d.used || 0) > (d.total || 0) && (d.total || 0) > 0).length;
+  const overbookEl = document.getElementById('statOverbook');
+  if (overbooked > 0) {
+    overbookEl.textContent = overbooked + ' 个航次超载（货量>舱位）';
+    overbookEl.style.display = 'block';
+  } else {
+    overbookEl.style.display = 'none';
+  }
+
+  const loadCard = document.getElementById('statLoadCard');
+  loadCard.className = 'stat-card';
+  if (avgRate > 100) loadCard.classList.add('danger');
+  else if (avgRate > 90) loadCard.classList.add('warn');
+  else if (avgRate < 50) loadCard.classList.add('ok');
+}
+
+function resetFilters() {
+  document.getElementById('filterSearch').value = '';
+  document.getElementById('filterRoute').value = '';
+  document.getElementById('filterPort').value = '';
+  document.getElementById('filterCountry').value = '';
+  document.getElementById('filterWarehouse').value = '';
+  renderTable();
+}
+
+// ==================== CRUD ====================
+function openAddModal() {
+  editIndex = -1;
+  document.getElementById('modalTitle').textContent = '新增航次';
+  document.getElementById('modalSaveBtn').textContent = '保存';
+  resetForm();
+  document.getElementById('modalOverlay').classList.add('active');
+}
+
+function openEditModal(idx) {
+  editIndex = idx;
+  manualTotalOverride = false;
+  const item = data[idx];
+  document.getElementById('modalTitle').textContent = '编辑航次';
+  document.getElementById('modalSaveBtn').textContent = '更新';
+  document.getElementById('formRoute').value = item.route || '';
+  document.getElementById('formVessel').value = item.vessel || '';
+  document.getElementById('formCutoff').value = item.cutoff || '';
+  document.getElementById('formContainers').value = item.containers || '';
+  document.getElementById('formPort').value = item.port || '';
+  document.getElementById('formCountry').value = item.country || '';
+  document.getElementById('formChannel').value = item.channel || '';
+  document.getElementById('formTotal').value = item.total || 0;
+  document.getElementById('formUsed').value = item.used || 0;
+  document.getElementById('formAlert').value = item.alert || '';
+  document.getElementById('formFeedback').value = item.feedback || '';
+  updateFormAuto();
+  document.getElementById('modalOverlay').classList.add('active');
+}
+
+function closeModal() {
+  document.getElementById('modalOverlay').classList.remove('active');
+  resetForm();
+}
+
+function resetForm() {
+  ['formRoute','formVessel','formCutoff','formContainers','formPort','formCountry',
+   'formChannel','formTotal','formUsed','formAlert','formFeedback'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el.tagName === 'SELECT') el.value = '';
+    else if (el.type === 'number') el.value = '0';
+    else el.value = '';
+  });
+  document.getElementById('formWarehouse').value = '';
+  document.getElementById('formRemaining').value = '';
+  document.getElementById('ratioHint').textContent = `× ${cabinRatio} 舱/柜 = 舱位自动计算`;
+  manualTotalOverride = false;
+}
+
+function updateFormAuto() {
+  const port = document.getElementById('formPort').value;
+  const total = parseInt(document.getElementById('formTotal').value) || 0;
+  const used = parseInt(document.getElementById('formUsed').value) || 0;
+  document.getElementById('formWarehouse').value = getWarehouse(port);
+  document.getElementById('formRemaining').value = total - used;
+  document.getElementById('ratioHint').textContent = `× ${cabinRatio} 舱/柜 = ${(parseInt(document.getElementById('formContainers').value)||0) * cabinRatio} 舱位`;
+}
+
+// 监听端口和数量变化，自动更新仓库和剩余
+document.addEventListener('DOMContentLoaded', () => {
+  ['formPort','formTotal','formUsed'].forEach(id => {
+    document.getElementById(id).addEventListener('input', updateFormAuto);
+    document.getElementById(id).addEventListener('change', updateFormAuto);
+  });
+  // 舱位总数手动修改时标记为覆盖模式，拿柜数量变化后重置覆盖
+  document.getElementById('formTotal').addEventListener('input', onTotalManualChange);
+  document.getElementById('formContainers').addEventListener('input', function() {
+    manualTotalOverride = false;
+    onContainersChange();
+  });
+  // 筛选器
+  ['filterSearch','filterRoute','filterPort','filterCountry','filterWarehouse'].forEach(id => {
+    document.getElementById(id).addEventListener('input', renderTable);
+    document.getElementById(id).addEventListener('change', renderTable);
+  });
+  // 点击遮罩关闭
+  document.getElementById('modalOverlay').addEventListener('click', function(e) {
+    if (e.target === this) closeModal();
+  });
+});
+
+function saveEntry() {
+  const item = {
+    route: document.getElementById('formRoute').value.trim(),
+    vessel: document.getElementById('formVessel').value.trim(),
+    cutoff: document.getElementById('formCutoff').value,
+    containers: parseInt(document.getElementById('formContainers').value) || 0,
+    port: document.getElementById('formPort').value,
+    country: document.getElementById('formCountry').value,
+    channel: document.getElementById('formChannel').value,
+    total: parseInt(document.getElementById('formTotal').value) || 0,
+    used: parseInt(document.getElementById('formUsed').value) || 0,
+    alert: document.getElementById('formAlert').value.trim(),
+    feedback: document.getElementById('formFeedback').value.trim(),
+  };
+
+  if (!item.route || !item.vessel) {
+    alert('航线和船名航次为必填项！');
+    return;
+  }
+  if (item.containers < 0) {
+    alert('拿柜数量不能为负数！');
+    return;
+  }
+  if (item.total < 0 || item.used < 0) {
+    alert('舱位总数和系统抓取货量不能为负数！');
+    return;
+  }
+
+  if (editIndex >= 0) {
+    data[editIndex] = item;
+  } else {
+    data.push(item);
+  }
+  saveData();
+  closeModal();
+  updateFilterOptions();
+  renderTable();
+}
+
+function deleteEntry(idx) {
+  if (!confirm('确定要删除这条记录吗？')) return;
+  data.splice(idx, 1);
+  saveData();
+  updateFilterOptions();
+  renderTable();
+}
+
+// ==================== 导出 CSV ====================
+function exportCSV() {
+  const headers = ['航线','船名航次','截单时间','拿柜数量','起运港','国家','仓库','渠道','舱位总数','系统抓取货量','剩余舱位','预警','配载反馈'];
+  const rows = data.map(d => [
+    d.route, d.vessel, d.cutoff ? new Date(d.cutoff).toLocaleString('zh-CN') : '',
+    d.containers, d.port, d.country, getWarehouse(d.port), d.channel,
+    d.total, d.used, getRemaining(d), d.alert, d.feedback
+  ]);
+  const csv = [headers, ...rows].map(r => r.map(c => '"' + String(c).replace(/"/g,'""') + '"').join(',')).join('\n');
+  const bom = '﻿';
+  const blob = new Blob([bom + csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = '舱位数据_' + new Date().toISOString().slice(0,10) + '.csv';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ==================== 订单导入与汇总 ====================
+function handleFileSelect(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  document.getElementById('importBtn').textContent = '导入中...';
+  document.getElementById('importBtn').disabled = true;
+
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const wb = XLSX.read(e.target.result, { type: 'array' });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
+
+      orderData = rows.map(r => ({
+        orderNo: String(r['订单号'] || ''),
+        salesProduct: String(r['销售产品'] || ''),
+        serviceProduct: String(r['服务产品'] || ''),
+        status: String(r['订单状态'] || ''),
+        cbm: parseFloat(r['方数']) || 0,
+        country: String(r['国家'] || ''),
+        warehouse: String(r['实际所在仓库'] || ''),
+        route: String(r['航线'] || ''),
+        vessel: String(r['船名/航次'] || ''),
+        loadTime: String(r['装柜时间'] || ''),
+        etd: String(r['预计离港日期'] || ''),
+      }));
+
+      aggregateOrdersByChannel();
+      renderOrderSummary();
+      document.getElementById('orderPanel').style.display = 'block';
+      document.getElementById('clearOrderBtn').style.display = 'inline-block';
+      document.getElementById('importBtn').textContent = '重新导入';
+      document.getElementById('importBtn').disabled = false;
+      if (useOrderDataForSchedule) renderTable();
+    } catch (err) {
+      alert('文件解析失败：' + err.message);
+      document.getElementById('importBtn').textContent = '导入订单';
+      document.getElementById('importBtn').disabled = false;
+    }
+  };
+  reader.readAsArrayBuffer(file);
+  event.target.value = '';
+}
+
+function aggregateOrdersByChannel() {
+  orderChannelSummary = {};
+  const activeStatuses = ['已测量', '转运', '转运已收货'];
+
+  for (const order of orderData) {
+    const channel = matchChannelFromProduct(order.salesProduct);
+    if (!channel) continue;
+
+    if (!orderChannelSummary[channel]) {
+      orderChannelSummary[channel] = { count: 0, totalCbm: 0, measuredCbm: 0, pendingCbm: 0 };
+    }
+    const entry = orderChannelSummary[channel];
+    entry.count++;
+    entry.totalCbm += order.cbm;
+    if (activeStatuses.includes(order.status)) {
+      entry.measuredCbm += order.cbm; // 已测量+转运状态计入已测量
+    } else {
+      entry.pendingCbm += order.cbm;
+    }
+  }
+}
+
+function renderOrderSummary() {
+  const channels = Object.keys(orderChannelSummary).sort((a, b) =>
+    orderChannelSummary[b].totalCbm - orderChannelSummary[a].totalCbm
+  );
+
+  document.getElementById('orderStats').textContent =
+    `共 ${orderData.length} 条订单 | ${channels.length} 个渠道 | 总方数 ${orderData.reduce((s, o) => s + o.cbm, 0).toFixed(1)}`;
+
+  const scheduleChannels = [...new Set(data.map(d => d.channel).filter(Boolean))];
+
+  document.getElementById('orderSummaryBody').innerHTML = channels.map(ch => {
+    const s = orderChannelSummary[ch];
+    const matched = scheduleChannels.includes(ch)
+      ? `<span class="order-source-tag edit-only" onclick="event.stopPropagation();applyOrderToSchedule('${ch}')" title="点击应用到舱位表">✓ 已匹配 (${
+          data.filter(d => d.channel === ch).length
+        } 个航次)</span>`
+      : '<span style="color:#ccc;font-size:11px">未匹配</span>';
+    return `<tr>
+      <td><strong>${ch}</strong></td>
+      <td>${s.count}</td>
+      <td>${s.totalCbm.toFixed(1)}</td>
+      <td>${s.measuredCbm.toFixed(1)}</td>
+      <td>${s.pendingCbm.toFixed(1)}</td>
+      <td>${matched}</td>
+    </tr>`;
+  }).join('');
+}
+
+function applyOrderToSchedule(channel) {
+  const cbm = Math.round(orderChannelSummary[channel]?.measuredCbm || 0);
+  let applied = 0;
+  for (let i = 0; i < data.length; i++) {
+    if (data[i].channel === channel) {
+      data[i].used = cbm;
+      applied++;
+    }
+  }
+  useOrderDataForSchedule = true;
+  saveData();
+  renderTable();
+  renderOrderSummary();
+}
+
+function applyAllOrders() {
+  for (const ch of Object.keys(orderChannelSummary)) {
+    const cbm = Math.round(orderChannelSummary[ch]?.measuredCbm || 0);
+    for (let i = 0; i < data.length; i++) {
+      if (data[i].channel === ch) {
+        data[i].used = cbm;
+      }
+    }
+  }
+  useOrderDataForSchedule = true;
+  saveData();
+  renderTable();
+  renderOrderSummary();
+}
+
+function toggleOrderPanel() {
+  const body = document.getElementById('orderPanelBody');
+  const header = document.querySelector('.order-panel-header');
+  body.classList.toggle('hidden');
+  header.classList.toggle('collapsed');
+}
+
+function clearAllData() {
+  if (!confirm('确定清空全部航线数据？此操作不可恢复！')) return;
+  data = [];
+  saveData();
+  updateFilterOptions();
+  renderTable();
+}
+
+function clearOrders() {
+  if (!confirm('确定清除所有导入的订单数据？')) return;
+  orderData = [];
+  orderChannelSummary = {};
+  useOrderDataForSchedule = false;
+  document.getElementById('orderPanel').style.display = 'none';
+  document.getElementById('clearOrderBtn').style.display = 'none';
+  document.getElementById('importBtn').textContent = '导入订单';
+  renderTable();
+}
+
+// ==================== 初始化 ====================
+if (isReadonly) {
+  document.body.classList.add('readonly');
+  // 只读模式：从默认数据加载，不写 localStorage
+  data = JSON.parse(JSON.stringify(defaultData));
+} else {
+  loadData();
+}
+updateFilterOptions();
+renderTable();
+renderMapping();
+
+// 每分钟检查一次是否有截单时间过期，自动刷新表格状态
+setInterval(() => {
+  const hasExpired = data.some(d => d.cutoff && new Date(d.cutoff) < new Date());
+  if (hasExpired) renderTable();
+}, 60000);
+</script>
+
+</body>
+</html>
