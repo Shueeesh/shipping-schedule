@@ -147,6 +147,7 @@ body.readonly .edit-only { display: none !important; }
     <button class="btn btn-outline btn-sm" onclick="resetFilters()">清除筛选</button>
     <button class="btn btn-success btn-sm" onclick="exportCSV()">导出 CSV</button>
     <button class="btn btn-primary edit-only" onclick="openAddModal()">+ 新增航次</button>
+    <button class="btn btn-success btn-sm edit-only" onclick="downloadUpdate()">下载更新包</button>
     <button class="btn btn-danger btn-sm edit-only" onclick="clearAllData()">清空全部</button>
     <input type="file" id="orderFileInput" accept=".xlsx,.xls" style="display:none" onchange="handleFileSelect(event)">
     <button class="btn btn-outline btn-sm edit-only" onclick="document.getElementById('orderFileInput').click()" id="importBtn">导入订单</button>
@@ -1043,6 +1044,23 @@ function toggleOrderPanel() {
   const header = document.querySelector('.order-panel-header');
   body.classList.toggle('hidden');
   header.classList.toggle('collapsed');
+}
+
+function downloadUpdate() {
+  const pkg = {
+    data: data,
+    orderChannelSummary: orderChannelSummary,
+    useOrderDataForSchedule: useOrderDataForSchedule,
+    exportedAt: new Date().toISOString()
+  };
+  const blob = new Blob([JSON.stringify(pkg, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = '更新包_' + new Date().toISOString().slice(0, 10) + '.json';
+  a.click();
+  URL.revokeObjectURL(url);
+  alert('更新包已下载，发给管理员即可同步到线上。');
 }
 
 function clearAllData() {
