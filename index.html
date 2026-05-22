@@ -489,6 +489,8 @@ const defaultData = [
   { route:'COSCO/AWE3', vessel:'TAMPA TRIUMPH 1365E', cutoff:'2026-06-29T12:00', containers:1, port:'盐田', country:'美国', channel:'萨凡纳', total:70, used:0, alert:'', feedback:'' },
 ];
 
+const preloadedOrderSummary = {"以星/合德":{"count":176,"totalCbm":200.8,"measuredCbm":96.6,"pendingCbm":104.1},"纽约":{"count":291,"totalCbm":945.6,"measuredCbm":481.8,"pendingCbm":463.7},"萨凡纳":{"count":139,"totalCbm":397.8,"measuredCbm":137.8,"pendingCbm":260.0},"芝加哥":{"count":118,"totalCbm":215.8,"measuredCbm":91.2,"pendingCbm":124.5},"洛杉矶特惠":{"count":84,"totalCbm":141.8,"measuredCbm":56.0,"pendingCbm":85.8},"洛杉矶普船":{"count":533,"totalCbm":1887.4,"measuredCbm":697.4,"pendingCbm":1190.0},"奥克兰":{"count":114,"totalCbm":376.6,"measuredCbm":43.4,"pendingCbm":333.3},"美森":{"count":108,"totalCbm":86.8,"measuredCbm":54.0,"pendingCbm":32.8},"休斯顿":{"count":97,"totalCbm":317.4,"measuredCbm":136.2,"pendingCbm":181.2}};
+
 const defaultMapping = [
   { product:'半月A/B', channel:'美森' },
   { product:'半月C', channel:'以星/合德' },
@@ -979,8 +981,12 @@ function renderOrderSummary() {
     orderChannelSummary[b].totalCbm - orderChannelSummary[a].totalCbm
   );
 
+  const totalOrders = orderData.length || Object.values(orderChannelSummary).reduce((s, c) => s + c.count, 0);
+  const totalCbm = orderData.length
+    ? orderData.reduce((s, o) => s + o.cbm, 0)
+    : Object.values(orderChannelSummary).reduce((s, c) => s + c.totalCbm, 0);
   document.getElementById('orderStats').textContent =
-    `共 ${orderData.length} 条订单 | ${channels.length} 个渠道 | 总方数 ${orderData.reduce((s, o) => s + o.cbm, 0).toFixed(1)}`;
+    `共 ${totalOrders} 条订单 | ${channels.length} 个渠道 | 总方数 ${totalCbm.toFixed(1)}`;
 
   const scheduleChannels = [...new Set(data.map(d => d.channel).filter(Boolean))];
 
@@ -1061,14 +1067,29 @@ function clearOrders() {
 // ==================== 初始化 ====================
 if (isReadonly) {
   document.body.classList.add('readonly');
-  // 只读模式：从默认数据加载，不写 localStorage
+  // 只读模式：从默认数据加载，预置订单汇总
   data = JSON.parse(JSON.stringify(defaultData));
+  orderChannelSummary = JSON.parse(JSON.stringify(preloadedOrderSummary));
+  useOrderDataForSchedule = true;
+  // 自动将订单货量填充到舱位表
+  for (const ch of Object.keys(orderChannelSummary)) {
+    const cbm = Math.round(orderChannelSummary[ch]?.measuredCbm || 0);
+    for (let i = 0; i < data.length; i++) {
+      if (data[i].channel === ch) { data[i].used = cbm; }
+    }
+  }
 } else {
   loadData();
 }
 updateFilterOptions();
 renderTable();
 renderMapping();
+
+// 只读模式或已有订单数据时显示订单面板
+if (isReadonly || orderData.length > 0) {
+  document.getElementById('orderPanel').style.display = 'block';
+  if (isReadonly) renderOrderSummary();
+}
 
 // 每分钟检查一次是否有截单时间过期，自动刷新表格状态
 setInterval(() => {
