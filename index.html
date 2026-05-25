@@ -859,7 +859,7 @@ function openContainerViz(vessel, containers, total, used) {
     for (let i = 0; i < freeInThis; i++) cells.push('free-cell');
 
     html += `<div style="margin-bottom:14px;position:relative">`;
-    html += `<div style="font-size:12px;font-weight:600;margin-bottom:4px;color:#555">柜 #${c + 1} — 占用 ${usedInThis} / ${perContainer} 舱 (${Math.round(usedInThis/perContainer*100)}%) <button class="btn btn-primary btn-sm" style="margin-left:8px;padding:2px 10px;font-size:11px" onclick="event.stopPropagation();openViz3D('${vessel}', ${c + 1}, ${perContainer}, ${usedInThis})">🔍 3D查看</button><button class="btn btn-success btn-sm" style="margin-left:4px;padding:2px 10px;font-size:11px" onclick="event.stopPropagation();openOrder3D('${vessel}', ${usedInThis}, ${perContainer})">📦 实际装柜</button></div>`;
+    html += `<div style="font-size:12px;font-weight:600;margin-bottom:4px;color:#555">柜 #${c + 1} — 占用 ${usedInThis} / ${perContainer} 舱 (${Math.round(usedInThis/perContainer*100)}%) <button class="btn btn-primary btn-sm" style="margin-left:8px;padding:2px 10px;font-size:11px" onclick="event.stopPropagation();openOrder3D('${vessel}', ${usedInThis}, ${perContainer})">🔍 3D查看</button></div>`;
     html += `<div class="viz-grid">${cells.map(cell => `<div class="viz-cell ${cell}"></div>`).join('')}</div>`;
     html += `</div>`;
   }
@@ -875,129 +875,18 @@ window.openContainerViz = openContainerViz;
 window.closeViz = closeViz;
 
 // ==================== 3D集装箱可视化 ====================
-let viz3dScene, viz3dCamera, viz3dRenderer, viz3dControls, viz3dAnimationId;
-
-function openViz3D(vessel, containerNum, perContainer, usedInThis) {
-  document.getElementById('viz3dTitle').textContent = `40HQ 柜 #${containerNum} — ${vessel}`;
-  document.getElementById('viz3dStats').textContent = `已占用 ${usedInThis} / ${perContainer} 舱`;
-
-  const container = document.getElementById('viz3dCanvas');
-  container.innerHTML = '';
-  document.getElementById('viz3dOverlay').classList.add('active');
-
-  // Scene setup
-  viz3dScene = new THREE.Scene();
-  viz3dScene.background = new THREE.Color(0x1a1a2e);
-  viz3dScene.fog = new THREE.Fog(0x1a1a2e, 15, 40);
-
-  const width = container.clientWidth;
-  const height = container.clientHeight;
-  viz3dCamera = new THREE.PerspectiveCamera(45, width / height, 0.5, 100);
-  viz3dCamera.position.set(8, 6, 12);
-  viz3dCamera.lookAt(0, 0, 0);
-
-  viz3dRenderer = new THREE.WebGLRenderer({ antialias: true });
-  viz3dRenderer.setSize(width, height);
-  viz3dRenderer.setPixelRatio(window.devicePixelRatio);
-  viz3dRenderer.shadowMap.enabled = true;
-  container.appendChild(viz3dRenderer.domElement);
-
-  // Lighting
-  viz3dScene.add(new THREE.AmbientLight(0x404060, 2));
-  const dirLight = new THREE.DirectionalLight(0xffffff, 3);
-  dirLight.position.set(10, 15, 8);
-  dirLight.castShadow = true;
-  viz3dScene.add(dirLight);
-
-  // Grid floor
-  const grid = new THREE.GridHelper(14, 14, 0x444466, 0x222244);
-  grid.position.y = -1.5;
-  viz3dScene.add(grid);
-
-  // Container shell (semi-transparent)
-  const shellGeo = new THREE.BoxGeometry(12, 2.7, 2.4);
-  const shellEdges = new THREE.EdgesGeometry(shellGeo);
-  const shellLine = new THREE.LineSegments(shellEdges, new THREE.LineBasicMaterial({ color: 0x4a9eff, linewidth: 1 }));
-  viz3dScene.add(shellLine);
-
-  const shellMat = new THREE.MeshPhongMaterial({ color: 0x4a9eff, transparent: true, opacity: 0.08, side: THREE.DoubleSide });
-  const shell = new THREE.Mesh(shellGeo, shellMat);
-  viz3dScene.add(shell);
-
-  // Cabin cubes: 7 cols × 10 rows = 70, laid out on floor inside container
-  const cols = 7, rows = 10;
-  const cubeW = 1.1, cubeH = 0.8, cubeD = 0.28;
-  const startX = -5.5, startZ = -1.0;
-  const gapX = 0.1, gapZ = 0.06;
-
-  const freeMat = new THREE.MeshPhongMaterial({ color: 0x27ae60, emissive: 0x103010 });
-  const usedMat = new THREE.MeshPhongMaterial({ color: 0xe74c3c, emissive: 0x301010 });
-  const cubeGeo = new THREE.BoxGeometry(cubeW, cubeH, cubeD);
-
-  for (let row = 0; row < rows; row++) {
-    for (let col = 0; col < cols; col++) {
-      const idx = row * cols + col;
-      const isUsed = idx < usedInThis;
-      const cube = new THREE.Mesh(cubeGeo, isUsed ? usedMat : freeMat);
-      cube.position.set(
-        startX + row * (cubeW + gapX) + cubeW / 2,
-        -1.35 + cubeH / 2 + 0.1,
-        startZ + col * (cubeD + gapZ) + cubeD / 2
-      );
-      cube.castShadow = true;
-      viz3dScene.add(cube);
-    }
-  }
-
-  // Orbit controls
-  viz3dControls = new OrbitControls(viz3dCamera, viz3dRenderer.domElement);
-  viz3dControls.target.set(0, -0.5, 0);
-  viz3dControls.enableDamping = true;
-  viz3dControls.dampingFactor = 0.1;
-  viz3dControls.minDistance = 5;
-  viz3dControls.maxDistance = 25;
-  viz3dControls.maxPolarAngle = Math.PI / 2 + 0.3;
-  viz3dControls.update();
-
-  // Animate
-  function animate() {
-    viz3dAnimationId = requestAnimationFrame(animate);
-    viz3dControls.update();
-    viz3dRenderer.render(viz3dScene, viz3dCamera);
-  }
-  animate();
-
-  // Resize handler
-  window.addEventListener('resize', onViz3dResize);
-}
-
-function onViz3dResize() {
-  if (!viz3dRenderer) return;
-  const container = document.getElementById('viz3dCanvas');
-  viz3dCamera.aspect = container.clientWidth / container.clientHeight;
-  viz3dCamera.updateProjectionMatrix();
-  viz3dRenderer.setSize(container.clientWidth, container.clientHeight);
-}
+let order3dScene, order3dCamera, order3dRenderer, order3dControls, order3dAnimId;
 
 function closeViz3D() {
   document.getElementById('viz3dOverlay').classList.remove('active');
-  // Clean up viz3D resources
-  if (viz3dAnimationId) { cancelAnimationFrame(viz3dAnimationId); viz3dAnimationId = null; }
-  if (viz3dRenderer) { viz3dRenderer.dispose(); viz3dRenderer = null; }
-  if (viz3dControls) { viz3dControls.dispose(); viz3dControls = null; }
-  window.removeEventListener('resize', onViz3dResize);
-  // Clean up order3D resources
   if (order3dAnimId) { cancelAnimationFrame(order3dAnimId); order3dAnimId = null; }
   if (order3dRenderer) { order3dRenderer.dispose(); order3dRenderer = null; }
   if (order3dControls) { order3dControls.dispose(); order3dControls = null; }
   window.removeEventListener('resize', onOrder3dResize);
   document.getElementById('viz3dCanvas').innerHTML = '';
 }
-window.openViz3D = openViz3D;
 window.closeViz3D = closeViz3D;
 window.openOrder3D = openOrder3D;
-
-// ==================== 实际订单3D装柜（演示） ====================
 let order3dScene, order3dCamera, order3dRenderer, order3dControls, order3dAnimId;
 
 function openOrder3D(vessel, usedSlots, perContainer) {
