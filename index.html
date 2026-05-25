@@ -584,7 +584,7 @@ function renderTable() {
         <td>${item.route || ''}</td>
         <td>${item.vessel || ''}</td>
         <td>${cutoffDisplay}</td>
-        <td title="${item.containers || 0} 柜 × ${cabinRatio} 舱/柜 = ${(item.containers || 0) * cabinRatio} 舱位" style="cursor:pointer" onclick="openContainerViz('${(item.vessel||'').replace(/'/g,\"\\\\'\")}', ${item.containers||0}, ${item.total||0}, ${item.used||0}, '${(item.channel||'').replace(/'/g,\"\\\\'\")}')">${item.containers || 0}</td>
+        <td title="${item.containers || 0} 柜 × ${cabinRatio} 舱/柜 = ${(item.containers || 0) * cabinRatio} 舱位" style="cursor:pointer" onclick="openContainerViz('${(item.vessel||'').replace(/'/g,"\\'")}', ${item.containers||0}, ${item.total||0}, ${item.used||0}, '${(item.channel||'').replace(/'/g,"\\'")}')">${item.containers || 0}</td>
         <td>${item.port || ''}</td>
         <td>${item.country || ''}</td>
         <td class="warehouse-tag"><span class="${wTag}">${warehouse}</span></td>
@@ -859,7 +859,7 @@ function openContainerViz(vessel, containers, total, used, channel) {
     for (let i = 0; i < freeInThis; i++) cells.push('free-cell');
 
     html += `<div style="margin-bottom:14px;position:relative">`;
-    html += `<div style="font-size:12px;font-weight:600;margin-bottom:4px;color:#555">柜 #${c + 1} — 占用 ${usedInThis} / ${perContainer} 舱 (${Math.round(usedInThis/perContainer*100)}%) <button class="btn btn-primary btn-sm" style="margin-left:8px;padding:2px 10px;font-size:11px" onclick="event.stopPropagation();openOrder3D('${vessel.replace(/'/g,\"\\\\'\")}', ${usedInThis}, ${perContainer}, '${channel.replace(/'/g,\"\\\\'\")}')">🔍 3D查看</button></div>`;
+    html += `<div style="font-size:12px;font-weight:600;margin-bottom:4px;color:#555">柜 #${c + 1} — 占用 ${usedInThis} / ${perContainer} 舱 (${Math.round(usedInThis/perContainer*100)}%) <button class="btn btn-primary btn-sm" style="margin-left:8px;padding:2px 10px;font-size:11px" onclick="event.stopPropagation();openOrder3D('${vessel.replace(/'/g,"\\'")}', ${usedInThis}, ${perContainer}, '${channel.replace(/'/g,"\\'")}')">🔍 3D查看</button></div>`;
     html += `<div class="viz-grid">${cells.map(cell => `<div class="viz-cell ${cell}"></div>`).join('')}</div>`;
     html += `</div>`;
   }
@@ -1282,6 +1282,7 @@ if (isReadonly) {
   document.body.classList.add('readonly');
   // 只读模式：从默认数据加载，预置订单汇总
   data = JSON.parse(JSON.stringify(defaultData));
+  channelMapping = JSON.parse(JSON.stringify(defaultMapping));
   orderChannelSummary = JSON.parse(JSON.stringify(preloadedOrderSummary));
   useOrderDataForSchedule = true;
   // 自动将订单货量填充到舱位表
