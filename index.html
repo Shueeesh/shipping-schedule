@@ -380,6 +380,22 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 // 默认只读模式，加 ?edit 参数可启用编辑功能
 const isReadonly = !window.location.search.includes('edit');
 
+// ==================== 演示用订单数据（12个不同方数的实际订单） ====================
+const demoOrders = [
+  { order:'AST2635920', product:'洛杉矶海卡CBM', cbm:14.48, pcs:200, color:0xc0392b },
+  { order:'AST2635920', product:'洛杉矶卡派KG', cbm:8.1, pcs:80, color:0xe74c3c },
+  { order:'AST2602020', product:'洛杉矶卡派KG', cbm:7.01, pcs:98, color:0xe67e22 },
+  { order:'AST2785920', product:'洛杉矶卡派KG', cbm:1.94, pcs:40, color:0xf39c12 },
+  { order:'AST1512420', product:'洛杉矶海卡CBM', cbm:1.11, pcs:18, color:0x2980b9 },
+  { order:'AST1633720', product:'洛杉矶卡派KG', cbm:1.05, pcs:27, color:0x3498db },
+  { order:'AST2902920', product:'洛杉矶卡派KG', cbm:0.88, pcs:110, color:0x1abc9c },
+  { order:'AST1633720', product:'洛杉矶卡派KG', cbm:0.6, pcs:18, color:0x27ae60 },
+  { order:'AST2602720', product:'洛杉矶卡派KG', cbm:0.34, pcs:10, color:0x2ecc71 },
+  { order:'AST2778320', product:'洛杉矶卡派KG', cbm:0.23, pcs:2, color:0x9b59b6 },
+  { order:'AST1533220', product:'洛杉矶卡派KG', cbm:0.16, pcs:2, color:0x8e44ad },
+  { order:'AST1719920', product:'洛杉矶卡派KG', cbm:0.1, pcs:1, color:0x7f8c8d },
+];
+
 // ==================== 数据层 ====================
 const STORAGE_KEY = 'shipping_data';
 const MAPPING_KEY = 'shipping_mapping';
@@ -847,7 +863,7 @@ function openContainerViz(vessel, containers, total, used) {
     for (let i = 0; i < freeInThis; i++) cells.push('free-cell');
 
     html += `<div style="margin-bottom:14px;position:relative">`;
-    html += `<div style="font-size:12px;font-weight:600;margin-bottom:4px;color:#555">柜 #${c + 1} — 占用 ${usedInThis} / ${perContainer} 舱 (${Math.round(usedInThis/perContainer*100)}%) <button class="btn btn-primary btn-sm" style="margin-left:8px;padding:2px 10px;font-size:11px" onclick="event.stopPropagation();openViz3D('${vessel}', ${c + 1}, ${perContainer}, ${usedInThis})">🔍 3D查看</button></div>`;
+    html += `<div style="font-size:12px;font-weight:600;margin-bottom:4px;color:#555">柜 #${c + 1} — 占用 ${usedInThis} / ${perContainer} 舱 (${Math.round(usedInThis/perContainer*100)}%) <button class="btn btn-primary btn-sm" style="margin-left:8px;padding:2px 10px;font-size:11px" onclick="event.stopPropagation();openViz3D('${vessel}', ${c + 1}, ${perContainer}, ${usedInThis})">🔍 3D查看</button><button class="btn btn-success btn-sm" style="margin-left:4px;padding:2px 10px;font-size:11px" onclick="event.stopPropagation();openOrder3D('${vessel}')">📦 实际装柜</button></div>`;
     html += `<div class="viz-grid">${cells.map(cell => `<div class="viz-cell ${cell}"></div>`).join('')}</div>`;
     html += `</div>`;
   }
@@ -977,6 +993,148 @@ function closeViz3D() {
 }
 window.openViz3D = openViz3D;
 window.closeViz3D = closeViz3D;
+window.openOrder3D = openOrder3D;
+
+// ==================== 实际订单3D装柜（演示） ====================
+let order3dScene, order3dCamera, order3dRenderer, order3dControls, order3dAnimId;
+
+function openOrder3D(vessel) {
+  document.getElementById('viz3dTitle').textContent = '40HQ 实际订单装柜 — ' + vessel;
+  const totalCbm = demoOrders.reduce((s, o) => s + o.cbm, 0);
+  document.getElementById('viz3dStats').textContent = `12个订单 | 合计 ${totalCbm.toFixed(1)} 方 | 70方容量`;
+
+  const container = document.getElementById('viz3dCanvas');
+  container.innerHTML = '';
+  document.getElementById('viz3dOverlay').classList.add('active');
+
+  // Scene
+  order3dScene = new THREE.Scene();
+  order3dScene.background = new THREE.Color(0x1a1a2e);
+  order3dScene.fog = new THREE.Fog(0x1a1a2e, 15, 40);
+
+  const w = container.clientWidth, h = container.clientHeight;
+  order3dCamera = new THREE.PerspectiveCamera(45, w / h, 0.5, 100);
+  order3dCamera.position.set(9, 7, 13);
+  order3dCamera.lookAt(0, 0, 0);
+
+  order3dRenderer = new THREE.WebGLRenderer({ antialias: true });
+  order3dRenderer.setSize(w, h);
+  order3dRenderer.setPixelRatio(window.devicePixelRatio);
+  order3dRenderer.shadowMap.enabled = true;
+  container.appendChild(order3dRenderer.domElement);
+
+  // Lights
+  order3dScene.add(new THREE.AmbientLight(0x404060, 2.5));
+  const dl = new THREE.DirectionalLight(0xffffff, 3);
+  dl.position.set(10, 15, 8);
+  dl.castShadow = true;
+  order3dScene.add(dl);
+
+  // Floor
+  order3dScene.add(new THREE.GridHelper(14, 14, 0x444466, 0x222244).translateY(-1.5));
+
+  // Container shell
+  const shellGeo = new THREE.BoxGeometry(12, 2.7, 2.4);
+  const shellEdges = new THREE.EdgesGeometry(shellGeo);
+  order3dScene.add(new THREE.LineSegments(shellEdges, new THREE.LineBasicMaterial({ color: 0x4a9eff })));
+  order3dScene.add(new THREE.Mesh(shellGeo, new THREE.MeshPhongMaterial({ color: 0x4a9eff, transparent: true, opacity: 0.06, side: THREE.DoubleSide })));
+
+  // Pack orders into container (simple strip packing)
+  // Sorted by CBM descending, placed in rows
+  const sorted = [...demoOrders].sort((a, b) => b.cbm - a.cbm);
+  const maxCbm = sorted[0].cbm;
+  const floorArea = 12 * 2.4; // ~28.8 m²
+  const maxHeight = 2.5;
+
+  // Normalize: total 70方 fills the container
+  const scaleFactor = 70; // 70 方 = full container
+  let xPos = -5.8, zPos = -1.0, rowMaxH = 0;
+  const zStep = 0.9; // row depth
+
+  sorted.forEach((order, idx) => {
+    // Block volume proportional to CBM
+    const volRatio = order.cbm / scaleFactor;
+    const containerVol = 12 * 2.4 * 2.5;
+    const blockVol = volRatio * containerVol;
+
+    // Simple block sizing: fixed depth, width proportional to cbm, height fills
+    const depth = 0.7;
+    const width = Math.max(0.2, order.cbm / maxCbm * 4);
+    const height = Math.max(0.15, blockVol / (width * depth));
+
+    // New row if this block would overflow
+    if (xPos + width > 5.8) {
+      xPos = -5.8;
+      zPos += zStep;
+      if (zPos > 1.0) zPos = -1.0; // wrap
+    }
+
+    const geo = new THREE.BoxGeometry(width, height, depth);
+    const mat = new THREE.MeshPhongMaterial({ color: order.color, emissive: order.color, emissiveIntensity: 0.15 });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.set(xPos + width / 2, -1.35 + height / 2 + 0.05, zPos);
+    mesh.castShadow = true;
+    mesh.userData = order;
+
+    // Wireframe edge
+    const edgeGeo = new THREE.EdgesGeometry(geo);
+    mesh.add(new THREE.LineSegments(edgeGeo, new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.3 })));
+
+    order3dScene.add(mesh);
+    xPos += width + 0.1;
+    rowMaxH = Math.max(rowMaxH, height);
+  });
+
+  // Label: remaining space
+  const usedCbm = totalCbm;
+  const freeCbm = 70 - usedCbm;
+  // Show free space as transparent green box
+  if (freeCbm > 0 && zPos < 1.0) {
+    const freeVol = (freeCbm / 70) * 12 * 2.4 * 2.5;
+    const freeW = Math.min(5.8 - xPos, 3);
+    const freeH = freeVol / (freeW * 0.7);
+    const freeGeo = new THREE.BoxGeometry(freeW, Math.max(0.1, freeH), 0.7);
+    const freeMat = new THREE.MeshPhongMaterial({ color: 0x27ae60, transparent: true, opacity: 0.25, emissive: 0x104010 });
+    order3dScene.add(new THREE.Mesh(freeGeo, freeMat).translateY(-1.35 + Math.max(0.1, freeH) / 2 + 0.05).translateX(xPos + freeW / 2).translateZ(zPos));
+  }
+
+  // Controls
+  order3dControls = new OrbitControls(order3dCamera, order3dRenderer.domElement);
+  order3dControls.target.set(0, -0.5, 0);
+  order3dControls.enableDamping = true;
+  order3dControls.dampingFactor = 0.1;
+  order3dControls.minDistance = 5;
+  order3dControls.maxDistance = 25;
+  order3dControls.maxPolarAngle = Math.PI / 2 + 0.3;
+  order3dControls.update();
+
+  function animate() {
+    order3dAnimId = requestAnimationFrame(animate);
+    order3dControls.update();
+    order3dRenderer.render(order3dScene, order3dCamera);
+  }
+  animate();
+
+  window.addEventListener('resize', onOrder3dResize);
+}
+
+function onOrder3dResize() {
+  if (!order3dRenderer) return;
+  const c = document.getElementById('viz3dCanvas');
+  order3dCamera.aspect = c.clientWidth / c.clientHeight;
+  order3dCamera.updateProjectionMatrix();
+  order3dRenderer.setSize(c.clientWidth, c.clientHeight);
+}
+
+// Update closeViz3D to also cleanup order3d
+const _origCloseViz3D = closeViz3D;
+closeViz3D = function() {
+  if (order3dAnimId) cancelAnimationFrame(order3dAnimId);
+  if (order3dRenderer) { order3dRenderer.dispose(); order3dRenderer = null; }
+  if (order3dControls) { order3dControls.dispose(); order3dControls = null; }
+  window.removeEventListener('resize', onOrder3dResize);
+  _origCloseViz3D();
+};
 
 // ==================== 订单导入与汇总 ====================
 function handleFileSelect(event) {
