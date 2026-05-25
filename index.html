@@ -891,11 +891,18 @@ function openOrder3D(vessel, usedSlots, perContainer) {
   containerEl.innerHTML = '';
   document.getElementById('viz3dOverlay').classList.add('active');
 
+  // 等待浏览器完成布局后再读取尺寸（避免 flex 布局下 clientHeight 为 0）
+  function tryInit() {
+    const w = containerEl.clientWidth, h = containerEl.clientHeight;
+    if (w === 0 || h === 0) { requestAnimationFrame(tryInit); return; }
+    initScene(w, h);
+  }
+  requestAnimationFrame(tryInit);
+
+  function initScene(w, h) {
   order3dScene = new THREE.Scene();
   order3dScene.background = new THREE.Color(0x1a1a2e);
   order3dScene.fog = new THREE.Fog(0x1a1a2e, 15, 40);
-
-  const w = containerEl.clientWidth, h = containerEl.clientHeight;
   order3dCamera = new THREE.PerspectiveCamera(45, w / h, 0.5, 100);
   order3dCamera.position.set(9, 7, 13);
   order3dCamera.lookAt(0, -0.3, 0);
@@ -1042,6 +1049,7 @@ function openOrder3D(vessel, usedSlots, perContainer) {
   animate();
 
   window.addEventListener('resize', onOrder3dResize);
+  } // end initScene
 }
 
 function onOrder3dResize() {
