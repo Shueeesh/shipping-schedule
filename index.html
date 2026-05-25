@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>舱位管理系统</title>
 <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/examples/js/controls/OrbitControls.js"></script>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif; background: #f0f2f5; color: #333; min-height: 100vh; }
@@ -258,6 +260,24 @@ body.readonly .edit-only { display: none !important; }
         <span style="background:#d4edda"></span> 空闲
         <span style="background:#e74c3c"></span> 已占用
         <span style="background:#f39c12"></span> 部分占用
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 3D集装箱模态框 -->
+<div class="modal-overlay" id="viz3dOverlay">
+  <div class="modal" style="width:800px">
+    <div class="modal-header">
+      <h3 id="viz3dTitle">40HQ 3D 装柜情况</h3>
+      <button class="btn btn-outline btn-sm" onclick="closeViz3D()">✕</button>
+    </div>
+    <div style="padding:0;position:relative">
+      <div id="viz3dCanvas" style="width:100%;height:500px;background:#1a1a2e;border-radius:0 0 12px 12px"></div>
+      <div style="position:absolute;bottom:16px;left:16px;display:flex;gap:12px;font-size:12px;color:#fff;background:rgba(0,0,0,0.5);padding:8px 12px;border-radius:6px">
+        <span><span style="display:inline-block;width:12px;height:12px;border-radius:2px;background:#27ae60;vertical-align:middle;margin-right:4px"></span>空闲</span>
+        <span><span style="display:inline-block;width:12px;height:12px;border-radius:2px;background:#e74c3c;vertical-align:middle;margin-right:4px"></span>已占用</span>
+        <span style="margin-left:8px" id="viz3dStats"></span>
       </div>
     </div>
   </div>
@@ -727,6 +747,9 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('vizOverlay').addEventListener('click', function(e) {
     if (e.target === this) closeViz();
   });
+  document.getElementById('viz3dOverlay').addEventListener('click', function(e) {
+    if (e.target === this) closeViz3D();
+  });
 });
 
 function saveEntry() {
@@ -820,8 +843,8 @@ function openContainerViz(vessel, containers, total, used) {
     for (let i = 0; i < usedInThis; i++) cells.push('occupied');
     for (let i = 0; i < freeInThis; i++) cells.push('free-cell');
 
-    html += `<div style="margin-bottom:14px">`;
-    html += `<div style="font-size:12px;font-weight:600;margin-bottom:4px;color:#555">柜 #${c + 1} — 占用 ${usedInThis} / ${perContainer} 舱 (${Math.round(usedInThis/perContainer*100)}%)</div>`;
+    html += `<div style="margin-bottom:14px;position:relative">`;
+    html += `<div style="font-size:12px;font-weight:600;margin-bottom:4px;color:#555">柜 #${c + 1} — 占用 ${usedInThis} / ${perContainer} 舱 (${Math.round(usedInThis/perContainer*100)}%) <button class="btn btn-primary btn-sm" style="margin-left:8px;padding:2px 10px;font-size:11px" onclick="event.stopPropagation();openViz3D('${vessel}', ${c + 1}, ${perContainer}, ${usedInThis})">🔍 3D查看</button></div>`;
     html += `<div class="viz-grid">${cells.map(cell => `<div class="viz-cell ${cell}"></div>`).join('')}</div>`;
     html += `</div>`;
   }
@@ -832,6 +855,120 @@ function openContainerViz(vessel, containers, total, used) {
 
 function closeViz() {
   document.getElementById('vizOverlay').classList.remove('active');
+}
+
+// ==================== 3D集装箱可视化 ====================
+let viz3dScene, viz3dCamera, viz3dRenderer, viz3dControls, viz3dAnimationId;
+
+function openViz3D(vessel, containerNum, perContainer, usedInThis) {
+  document.getElementById('viz3dTitle').textContent = `40HQ 柜 #${containerNum} — ${vessel}`;
+  document.getElementById('viz3dStats').textContent = `已占用 ${usedInThis} / ${perContainer} 舱`;
+
+  const container = document.getElementById('viz3dCanvas');
+  container.innerHTML = '';
+  document.getElementById('viz3dOverlay').classList.add('active');
+
+  // Scene setup
+  viz3dScene = new THREE.Scene();
+  viz3dScene.background = new THREE.Color(0x1a1a2e);
+  viz3dScene.fog = new THREE.Fog(0x1a1a2e, 15, 40);
+
+  const width = container.clientWidth;
+  const height = container.clientHeight;
+  viz3dCamera = new THREE.PerspectiveCamera(45, width / height, 0.5, 100);
+  viz3dCamera.position.set(8, 6, 12);
+  viz3dCamera.lookAt(0, 0, 0);
+
+  viz3dRenderer = new THREE.WebGLRenderer({ antialias: true });
+  viz3dRenderer.setSize(width, height);
+  viz3dRenderer.setPixelRatio(window.devicePixelRatio);
+  viz3dRenderer.shadowMap.enabled = true;
+  container.appendChild(viz3dRenderer.domElement);
+
+  // Lighting
+  viz3dScene.add(new THREE.AmbientLight(0x404060, 2));
+  const dirLight = new THREE.DirectionalLight(0xffffff, 3);
+  dirLight.position.set(10, 15, 8);
+  dirLight.castShadow = true;
+  viz3dScene.add(dirLight);
+
+  // Grid floor
+  const grid = new THREE.GridHelper(14, 14, 0x444466, 0x222244);
+  grid.position.y = -1.5;
+  viz3dScene.add(grid);
+
+  // Container shell (semi-transparent)
+  const shellGeo = new THREE.BoxGeometry(12, 2.7, 2.4);
+  const shellEdges = new THREE.EdgesGeometry(shellGeo);
+  const shellLine = new THREE.LineSegments(shellEdges, new THREE.LineBasicMaterial({ color: 0x4a9eff, linewidth: 1 }));
+  viz3dScene.add(shellLine);
+
+  const shellMat = new THREE.MeshPhongMaterial({ color: 0x4a9eff, transparent: true, opacity: 0.08, side: THREE.DoubleSide });
+  const shell = new THREE.Mesh(shellGeo, shellMat);
+  viz3dScene.add(shell);
+
+  // Cabin cubes: 7 cols × 10 rows = 70, laid out on floor inside container
+  const cols = 7, rows = 10;
+  const cubeW = 1.1, cubeH = 0.8, cubeD = 0.28;
+  const startX = -5.5, startZ = -1.0;
+  const gapX = 0.1, gapZ = 0.06;
+
+  const freeMat = new THREE.MeshPhongMaterial({ color: 0x27ae60, emissive: 0x103010 });
+  const usedMat = new THREE.MeshPhongMaterial({ color: 0xe74c3c, emissive: 0x301010 });
+  const cubeGeo = new THREE.BoxGeometry(cubeW, cubeH, cubeD);
+
+  for (let row = 0; row < rows; row++) {
+    for (let col = 0; col < cols; col++) {
+      const idx = row * cols + col;
+      const isUsed = idx < usedInThis;
+      const cube = new THREE.Mesh(cubeGeo, isUsed ? usedMat : freeMat);
+      cube.position.set(
+        startX + row * (cubeW + gapX) + cubeW / 2,
+        -1.35 + cubeH / 2 + 0.1,
+        startZ + col * (cubeD + gapZ) + cubeD / 2
+      );
+      cube.castShadow = true;
+      viz3dScene.add(cube);
+    }
+  }
+
+  // Orbit controls
+  viz3dControls = new THREE.OrbitControls(viz3dCamera, viz3dRenderer.domElement);
+  viz3dControls.target.set(0, -0.5, 0);
+  viz3dControls.enableDamping = true;
+  viz3dControls.dampingFactor = 0.1;
+  viz3dControls.minDistance = 5;
+  viz3dControls.maxDistance = 25;
+  viz3dControls.maxPolarAngle = Math.PI / 2 + 0.3;
+  viz3dControls.update();
+
+  // Animate
+  function animate() {
+    viz3dAnimationId = requestAnimationFrame(animate);
+    viz3dControls.update();
+    viz3dRenderer.render(viz3dScene, viz3dCamera);
+  }
+  animate();
+
+  // Resize handler
+  window.addEventListener('resize', onViz3dResize);
+}
+
+function onViz3dResize() {
+  if (!viz3dRenderer) return;
+  const container = document.getElementById('viz3dCanvas');
+  viz3dCamera.aspect = container.clientWidth / container.clientHeight;
+  viz3dCamera.updateProjectionMatrix();
+  viz3dRenderer.setSize(container.clientWidth, container.clientHeight);
+}
+
+function closeViz3D() {
+  document.getElementById('viz3dOverlay').classList.remove('active');
+  if (viz3dAnimationId) cancelAnimationFrame(viz3dAnimationId);
+  if (viz3dRenderer) { viz3dRenderer.dispose(); viz3dRenderer = null; }
+  if (viz3dControls) { viz3dControls.dispose(); viz3dControls = null; }
+  window.removeEventListener('resize', onViz3dResize);
+  document.getElementById('viz3dCanvas').innerHTML = '';
 }
 
 // ==================== 订单导入与汇总 ====================
