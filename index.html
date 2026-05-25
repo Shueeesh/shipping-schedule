@@ -1087,6 +1087,27 @@ function openOrder3D(vessel, usedSlots, perContainer) {
     freeMesh.position.set(colX + fw / 2, -cH / 2 + blockH / 2 + 0.05, rowZ + fd / 2);
     order3dScene.add(freeMesh);
   }
+
+  // Orbit controls
+  order3dControls = new OrbitControls(order3dCamera, order3dRenderer.domElement);
+  order3dControls.target.set(0, -0.5, 0);
+  order3dControls.enableDamping = true;
+  order3dControls.dampingFactor = 0.1;
+  order3dControls.minDistance = 5;
+  order3dControls.maxDistance = 25;
+  order3dControls.maxPolarAngle = Math.PI / 2 + 0.3;
+  order3dControls.update();
+
+  function animate() {
+    order3dAnimId = requestAnimationFrame(animate);
+    order3dControls.update();
+    order3dRenderer.render(order3dScene, order3dCamera);
+  }
+  animate();
+
+  window.addEventListener('resize', onOrder3dResize);
+}
+
 // Update closeViz3D to also cleanup order3d
 const _origCloseViz3D = closeViz3D;
 closeViz3D = function() {
@@ -1096,6 +1117,8 @@ closeViz3D = function() {
   window.removeEventListener('resize', onOrder3dResize);
   _origCloseViz3D();
 };
+// Re-bind window functions to pick up overridden closeViz3D
+window.closeViz3D = closeViz3D;
 
 // ==================== 订单导入与汇总 ====================
 function handleFileSelect(event) {
