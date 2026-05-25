@@ -891,11 +891,11 @@ function openOrder3D(vessel, usedSlots, perContainer) {
   containerEl.innerHTML = '';
   document.getElementById('viz3dOverlay').classList.add('active');
 
-  // 等待浏览器完成布局后再读取尺寸（避免 flex 布局下 clientHeight 为 0）
+  // rAF 等 layout 完成再用 getBoundingClientRect 取精确尺寸
   function tryInit() {
-    const w = containerEl.clientWidth, h = containerEl.clientHeight;
-    if (w === 0 || h === 0) { requestAnimationFrame(tryInit); return; }
-    initScene(w, h);
+    const rect = containerEl.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) { requestAnimationFrame(tryInit); return; }
+    initScene(rect.width, rect.height);
   }
   requestAnimationFrame(tryInit);
 
