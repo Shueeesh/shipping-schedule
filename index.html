@@ -1028,7 +1028,8 @@ function openOrder3D(vessel, usedSlots, perContainer, channel) {
 
   window._viz3dMeshes = meshes;
 
-  if (freeCbm > 0) {
+  // 仅在有货时显示剩余空间，全空柜不显示绿色色块
+  if (freeCbm > 0 && usedCbm > 0) {
     const freeVol = freeCbm * cbmToScene;
     const fh = cH * 0.7;
     const fa = freeVol / fh;
@@ -1036,7 +1037,7 @@ function openOrder3D(vessel, usedSlots, perContainer, channel) {
     const fd = fa / fw;
     if (colX + fw > cL / 2) { colX = -cL / 2 + 0.1; rowZ += fd + gap; }
     const freeGeo = new THREE.BoxGeometry(fw, fh, fd);
-    const freeMat = new THREE.MeshPhongMaterial({ color: 0x27ae60, transparent: true, opacity: 0.15, emissive: 0x102010 });
+    const freeMat = new THREE.MeshPhongMaterial({ color: 0x27ae60, transparent: true, opacity: 0.15, emissive: 0x104010 });
     const freeMesh = new THREE.Mesh(freeGeo, freeMat);
     freeMesh.position.set(colX + fw / 2, -cH / 2 + fh / 2 + 0.05, rowZ + fd / 2);
     order3dScene.add(freeMesh);
