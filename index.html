@@ -949,13 +949,13 @@ function openOrder3D(vessel, usedSlots, perContainer, channel) {
 
   if (hasRealOrders) {
     const scaleCbm = usedCbm / totalSampleCbm;
-    blocks = channelOrders.map((o, i) => ({ orderNo: o.orderNo, cbm: o.cbm * scaleCbm, fba: o.fba, color: colors[i % colors.length] }));
+    blocks = channelOrders.map((o, i) => ({ orderNo: o.orderNo, cbm: o.cbm * scaleCbm, fba: o.fba, color: colors[i % colors.length], origIdx: i }));
   } else {
     let remaining = usedCbm;
     const n = Math.min(6, Math.max(4, Math.ceil(usedCbm / 6)));
     for (let i = 0; i < n; i++) {
       const cbm = Math.max(0.3, Math.min(remaining, remaining / (n - i) * (1.2 - 0.4 * (i / n))));
-      blocks.push({ orderNo:'', cbm: cbm, fba:'', color: colors[i % colors.length] });
+      blocks.push({ orderNo:'', cbm, fba:'', color: colors[i % colors.length], origIdx: i });
       remaining -= cbm;
     }
     if (remaining > 0 && blocks.length > 0) blocks[blocks.length - 1].cbm += remaining;
