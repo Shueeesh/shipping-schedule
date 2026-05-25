@@ -981,10 +981,16 @@ function onViz3dResize() {
 
 function closeViz3D() {
   document.getElementById('viz3dOverlay').classList.remove('active');
-  if (viz3dAnimationId) cancelAnimationFrame(viz3dAnimationId);
+  // Clean up viz3D resources
+  if (viz3dAnimationId) { cancelAnimationFrame(viz3dAnimationId); viz3dAnimationId = null; }
   if (viz3dRenderer) { viz3dRenderer.dispose(); viz3dRenderer = null; }
   if (viz3dControls) { viz3dControls.dispose(); viz3dControls = null; }
   window.removeEventListener('resize', onViz3dResize);
+  // Clean up order3D resources
+  if (order3dAnimId) { cancelAnimationFrame(order3dAnimId); order3dAnimId = null; }
+  if (order3dRenderer) { order3dRenderer.dispose(); order3dRenderer = null; }
+  if (order3dControls) { order3dControls.dispose(); order3dControls = null; }
+  window.removeEventListener('resize', onOrder3dResize);
   document.getElementById('viz3dCanvas').innerHTML = '';
 }
 window.openViz3D = openViz3D;
@@ -1108,16 +1114,7 @@ function openOrder3D(vessel, usedSlots, perContainer) {
   window.addEventListener('resize', onOrder3dResize);
 }
 
-// Update closeViz3D to also cleanup order3d
-const _origCloseViz3D = closeViz3D;
-closeViz3D = function() {
-  if (order3dAnimId) cancelAnimationFrame(order3dAnimId);
-  if (order3dRenderer) { order3dRenderer.dispose(); order3dRenderer = null; }
-  if (order3dControls) { order3dControls.dispose(); order3dControls = null; }
-  window.removeEventListener('resize', onOrder3dResize);
-  _origCloseViz3D();
-};
-// Re-bind window functions to pick up overridden closeViz3D
+// Re-bind after functions declared
 window.closeViz3D = closeViz3D;
 
 // ==================== 订单导入与汇总 ====================
