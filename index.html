@@ -380,6 +380,13 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 // 默认只读模式，加 ?edit 参数可启用编辑功能
 const isReadonly = !window.location.search.includes('edit');
 
+// ==================== 演示用真实尺寸货物 ====================
+const demoSizedCargo = [
+  { name:'货件1', l:115, w:114, h:139, color:0xc0392b },
+  { name:'货件2', l:97, w:114, h:129, color:0xe67e22 },
+  { name:'货件3', l:125, w:125, h:117, color:0x2980b9 },
+];
+
 // ==================== 数据层 ====================
 const STORAGE_KEY = 'shipping_data';
 const MAPPING_KEY = 'shipping_mapping';
@@ -845,7 +852,7 @@ function openContainerViz(vessel, containers, total, used) {
     for (let i = 0; i < freeInThis; i++) cells.push('free-cell');
 
     html += `<div style="margin-bottom:14px;position:relative">`;
-    html += `<div style="font-size:12px;font-weight:600;margin-bottom:4px;color:#555">柜 #${c + 1} — 占用 ${usedInThis} / ${perContainer} 舱 (${Math.round(usedInThis/perContainer*100)}%) <button class="btn btn-primary btn-sm" style="margin-left:8px;padding:2px 10px;font-size:11px" onclick="event.stopPropagation();openOrder3D('${vessel}', ${usedInThis}, ${perContainer})">🔍 3D查看</button></div>`;
+    html += `<div style="font-size:12px;font-weight:600;margin-bottom:4px;color:#555">柜 #${c + 1} — 占用 ${usedInThis} / ${perContainer} 舱 (${Math.round(usedInThis/perContainer*100)}%) <button class="btn btn-primary btn-sm" style="margin-left:8px;padding:2px 10px;font-size:11px" onclick="event.stopPropagation();openOrder3D('${vessel}', ${usedInThis}, ${perContainer})">🔍 3D查看</button><button class="btn btn-outline btn-sm" style="margin-left:4px;padding:2px 10px;font-size:11px" onclick="event.stopPropagation();openSizedDemo3D()">📐 真实比例</button></div>`;
     html += `<div class="viz-grid">${cells.map(cell => `<div class="viz-cell ${cell}"></div>`).join('')}</div>`;
     html += `</div>`;
   }
@@ -987,6 +994,109 @@ function openOrder3D(vessel, usedSlots, perContainer) {
 
   window.addEventListener('resize', onOrder3dResize);
 }
+
+// ==================== 真实尺寸货物3D演示 ====================
+function openSizedDemo3D() {
+  document.getElementById('viz3dTitle').textContent = 'AST2030720260523001 — 3件货真实比例';
+  document.getElementById('viz3dStats').textContent = '115×114×139 | 97×114×129 | 125×125×117 (cm) | 显示比例 3×';
+
+  const containerEl = document.getElementById('viz3dCanvas');
+  containerEl.innerHTML = '';
+  document.getElementById('viz3dOverlay').classList.add('active');
+
+  order3dScene = new THREE.Scene();
+  order3dScene.background = new THREE.Color(0x1a1a2e);
+  order3dScene.fog = new THREE.Fog(0x1a1a2e, 15, 40);
+
+  const w = containerEl.clientWidth, h = containerEl.clientHeight;
+  order3dCamera = new THREE.PerspectiveCamera(45, w / h, 0.5, 100);
+  order3dCamera.position.set(5, 4, 8);
+  order3dCamera.lookAt(0, -0.1, 0);
+
+  order3dRenderer = new THREE.WebGLRenderer({ antialias: true });
+  order3dRenderer.setSize(w, h);
+  order3dRenderer.setPixelRatio(window.devicePixelRatio);
+  order3dRenderer.shadowMap.enabled = true;
+  containerEl.appendChild(order3dRenderer.domElement);
+
+  order3dScene.add(new THREE.AmbientLight(0x404060, 2.5));
+  const dl = new THREE.DirectionalLight(0xffffff, 3);
+  dl.position.set(10, 15, 8);
+  order3dScene.add(dl);
+
+  order3dScene.add(new THREE.GridHelper(12, 12, 0x444466, 0x222244).translateY(-1.2));
+
+  // Container shell (background reference)
+  const cL = 12, cW = 2.4, cH = 2.7;
+  const shellGeo = new THREE.BoxGeometry(cL, cH, cW);
+  order3dScene.add(new THREE.LineSegments(new THREE.EdgesGeometry(shellGeo), new THREE.LineBasicMaterial({ color: 0x4a9eff, transparent: true, opacity: 0.3 })));
+
+  // Scale factor: items at real scale (1m=1unit) are tiny vs 12m container, scale 3× for visibility
+  const scale = 3.0;
+  // Arrange items side by side with gaps
+  const items = demoSizedCargo;
+  let offsetX = -5;
+
+  items.forEach((item, idx) => {
+    // Convert cm to meters, apply scale, keep exact aspect ratio
+    const l = (item.l / 100) * scale;
+    const w = (item.w / 100) * scale;
+    const h = (item.h / 100) * scale;
+
+    const geo = new THREE.BoxGeometry(l, h, w);
+    const mat = new THREE.MeshPhongMaterial({
+      color: item.color,
+      emissive: item.color,
+      emissiveIntensity: 0.12,
+      transparent: true,
+      opacity: 0.85
+    });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.set(offsetX + l / 2, -1.0 + h / 2, 0);
+    mesh.castShadow = true;
+
+    // Wireframe edges for clarity
+    mesh.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo), new THREE.LineBasicMaterial({ color: 0xffffff })));
+
+    order3dScene.add(mesh);
+
+    // Label with dimensions
+    const canvas = document.createElement('canvas');
+    canvas.width = 256; canvas.height = 64;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '18px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(`${item.name}: ${item.l}×${item.w}×${item.h} cm`, 128, 36);
+    const texture = new THREE.CanvasTexture(canvas);
+    const spriteMat = new THREE.SpriteMaterial({ map: texture, transparent: true });
+    const sprite = new THREE.Sprite(spriteMat);
+    sprite.position.set(offsetX + l / 2, -1.0 + h + 0.4, 0);
+    sprite.scale.set(3, 0.75, 1);
+    order3dScene.add(sprite);
+
+    offsetX += l + 0.6;
+  });
+
+  // Orbit controls
+  order3dControls = new OrbitControls(order3dCamera, order3dRenderer.domElement);
+  order3dControls.target.set(0, -0.3, 0);
+  order3dControls.enableDamping = true;
+  order3dControls.dampingFactor = 0.1;
+  order3dControls.minDistance = 3;
+  order3dControls.maxDistance = 20;
+  order3dControls.maxPolarAngle = Math.PI / 2 + 0.3;
+  order3dControls.update();
+
+  function animate() {
+    order3dAnimId = requestAnimationFrame(animate);
+    order3dControls.update();
+    order3dRenderer.render(order3dScene, order3dCamera);
+  }
+  animate();
+  window.addEventListener('resize', onOrder3dResize);
+}
+window.openSizedDemo3D = openSizedDemo3D;
 
 // Re-bind after functions declared
 window.closeViz3D = closeViz3D;
