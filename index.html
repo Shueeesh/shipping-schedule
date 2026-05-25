@@ -900,6 +900,7 @@ function openOrder3D(vessel, usedSlots, perContainer) {
   requestAnimationFrame(tryInit);
 
   function initScene(w, h) {
+  try {
   order3dScene = new THREE.Scene();
   order3dScene.background = new THREE.Color(0x1a1a2e);
   order3dScene.fog = new THREE.Fog(0x1a1a2e, 15, 40);
@@ -1049,6 +1050,10 @@ function openOrder3D(vessel, usedSlots, perContainer) {
   animate();
 
   window.addEventListener('resize', onOrder3dResize);
+  } catch(e) {
+    document.getElementById('viz3dOrderList').innerHTML = '<div style=color:red>3D加载失败: ' + e.message + '</div>';
+    console.error('3D init error:', e);
+  }
   } // end initScene
 }
 
