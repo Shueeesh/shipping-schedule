@@ -6,7 +6,7 @@
 <title>舱位管理系统</title>
 <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
 <script type="importmap">
-{"imports":{"three":"https://unpkg.com/three@0.160.0/build/three.module.js","three/addons/":"https://unpkg.com/three@0.160.0/examples/jsm/"}}</script>
+{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif; background: #f0f2f5; color: #333; min-height: 100vh; }
@@ -159,7 +159,7 @@ body.readonly .edit-only { display: none !important; }
     <select id="filterWarehouse"><option value="">全部仓库</option></select>
     <div class="ratio-config edit-only">
       <span>每柜舱位:</span>
-      <input type="number" id="ratioInput" value="70" min="1" max="999" onchange="updateRatio()">
+      <input type="number" id="ratioInput" value="73.5" min="1" max="999" step="0.5" onchange="updateRatio()">
     </div>
     <span class="spacer"></span>
     <button class="btn btn-outline btn-sm" onclick="resetFilters()">清除筛选</button>
@@ -314,7 +314,7 @@ body.readonly .edit-only { display: none !important; }
       <div>
         <label>拿柜数量</label>
         <input type="number" id="formContainers" placeholder="单位：柜" min="0" oninput="onContainersChange()">
-        <div class="ratio-hint" id="ratioHint">× 70 舱/柜 = 舱位自动计算</div>
+        <div class="ratio-hint" id="ratioHint">× 73.5 舱/柜 = 舱位自动计算</div>
       </div>
       <div>
         <label>起运港</label>
@@ -398,7 +398,7 @@ const DATA_VERSION = 2; // 更新数据版本号以自动清除旧缓存
 let data = [];
 let channelMapping = [];
 let editIndex = -1;
-let cabinRatio = 70;
+let cabinRatio = 73.5;
 let manualTotalOverride = false;
 
 const defaultData = [
@@ -425,7 +425,7 @@ function loadData() {
   const rawMap = localStorage.getItem(MAPPING_KEY);
   channelMapping = rawMap ? JSON.parse(rawMap) : JSON.parse(JSON.stringify(defaultMapping));
   const savedRatio = localStorage.getItem(RATIO_KEY);
-  cabinRatio = savedRatio ? parseInt(savedRatio) : 70;
+  cabinRatio = savedRatio ? parseFloat(savedRatio) : 73.5;
   document.getElementById('ratioInput').value = cabinRatio;
 }
 
@@ -464,7 +464,7 @@ function matchChannelFromProduct(salesProduct) {
 
 // ==================== 业务逻辑 ====================
 function updateRatio() {
-  cabinRatio = parseInt(document.getElementById('ratioInput').value) || 70;
+  cabinRatio = parseFloat(document.getElementById('ratioInput').value) || 73.5;
   if (cabinRatio < 1) cabinRatio = 1;
   document.getElementById('ratioInput').value = cabinRatio;
   localStorage.setItem(RATIO_KEY, cabinRatio);
@@ -839,7 +839,7 @@ function openContainerViz(vessel, containers, total, used, channel) {
   document.getElementById('vizFree').textContent = total - used;
 
   const grid = document.getElementById('vizGrid');
-  const perContainer = cabinRatio; // 每个柜子的舱位数 = 70
+  const perContainer = cabinRatio; // 每个柜子的舱位数 = 73.5
   const totalUsed = used || 0;
 
   // 每个柜子独立展示
@@ -942,105 +942,86 @@ function openOrder3D(vessel, usedSlots, perContainer, channel) {
   const usedCbm = usedSlots;
   const freeCbm = perContainer - usedSlots;
 
-  // 使用真实样本订单或合成货块
+  // 使用真实样本订单（有单号）或合成货块（无单号时）
+  const aspectPresets = [
+    { l:2.5, w:1.2, h:1.8 }, { l:1.0, w:1.0, h:1.0 }, { l:0.8, w:1.5, h:2.2 },
+    { l:3.0, w:0.8, h:1.0 }, { l:1.2, w:1.2, h:1.8 }, { l:1.5, w:1.0, h:2.5 },
+    { l:2.0, w:1.5, h:1.2 }, { l:0.6, w:0.8, h:3.0 },
+  ];
   const colors = [0xc0392b, 0xe74c3c, 0xe67e22, 0xf39c12, 0x2980b9, 0x3498db, 0x1abc9c, 0x9b59b6];
-  const hasRealOrders = channelOrders.length > 0 && totalSampleCbm > 0;
   let blocks = [];
+  const hasRealOrders = channelOrders.length > 0 && totalSampleCbm > 0;
 
   if (hasRealOrders) {
+    // Use real sample orders, scale to fit the container's usedCbm
     const scaleCbm = usedCbm / totalSampleCbm;
-    blocks = channelOrders.map((o, i) => ({ orderNo: o.orderNo, cbm: o.cbm * scaleCbm, fba: o.fba, color: colors[i % colors.length], origIdx: i }));
+    blocks = channelOrders.map((o, i) => ({
+      orderNo: o.orderNo,
+      cbm: o.cbm * scaleCbm,
+      fba: o.fba,
+      color: colors[i % colors.length],
+      aspect: aspectPresets[i % aspectPresets.length]
+    }));
   } else {
+    // Fallback: synthetic blocks
+    const numBlocks = Math.min(6, Math.max(4, Math.ceil(usedCbm / 6)));
     let remaining = usedCbm;
-    const n = Math.min(6, Math.max(4, Math.ceil(usedCbm / 6)));
-    for (let i = 0; i < n; i++) {
-      const cbm = Math.max(0.3, Math.min(remaining, remaining / (n - i) * (1.2 - 0.4 * (i / n))));
-      blocks.push({ orderNo:'', cbm, fba:'', color: colors[i % colors.length], origIdx: i });
-      remaining -= cbm;
+    for (let i = 0; i < numBlocks; i++) {
+      const share = remaining / (numBlocks - i) * (1.2 - 0.4 * (i / numBlocks));
+      const cbm = Math.max(0.3, Math.round(share * 10) / 10);
+      const actual = Math.min(cbm, remaining);
+      if (actual < 0.05) break;
+      blocks.push({ orderNo:'', cbm: actual, fba:'', color: colors[i % colors.length], aspect: aspectPresets[i % aspectPresets.length] });
+      remaining -= actual;
     }
     if (remaining > 0 && blocks.length > 0) blocks[blocks.length - 1].cbm += remaining;
   }
 
-  // === 3D bin packing: shelf-based best-fit algorithm ===
-  const gap = 0.08;
-  // Sort blocks by CBM descending for better packing
-  blocks.sort((a, b) => b.cbm - a.cbm);
-
-  // Assign realistic dimensions based on CBM (cube root gives natural sizing)
-  const items = blocks.map((b, i) => {
-    const vol = b.cbm * cbmToScene;
-    const edge = Math.cbrt(vol);
-    // Vary aspect ratio: some long, some tall, some flat
-    const variant = i % 4;
-    let l, w, h;
-    if (variant === 0) { l = edge * 1.6; w = edge * 0.7; h = edge * 0.9; }
-    else if (variant === 1) { l = edge * 0.7; w = edge * 1.5; h = edge * 0.95; }
-    else if (variant === 2) { l = edge * 1.1; w = edge * 1.1; h = edge * 0.82; }
-    else { l = edge * 0.8; w = edge * 0.8; h = edge * 1.55; }
-    return { ...b, l, w, h, origIdx: i };
-  });
-
-  // Shelf packing: stack items on container floor, left-to-right, row-by-row
-  const floorL = cL - 0.2, floorW = cW - 0.2;
-  const shelves = []; // { y, remainingL, z, dUsed }
-  const placements = []; // { item, x, y, z }
-
-  items.forEach(item => {
-    let placed = false;
-    // Try to fit on existing shelf
-    for (const shelf of shelves) {
-      if (item.l <= shelf.remainingL) {
-        placements.push({ item, x: -floorL / 2 + (floorL - shelf.remainingL), y: shelf.y, z: shelf.z });
-        shelf.remainingL -= (item.l + gap);
-        shelf.dUsed = Math.max(shelf.dUsed, item.w);
-        placed = true;
-        break;
-      }
-    }
-    if (!placed) {
-      // Start new shelf
-      const prevD = shelves.length > 0 ? shelves[shelves.length - 1].dUsed + gap : 0;
-      const z = -floorW / 2 + prevD;
-      if (z + item.w <= floorW / 2) {
-        shelves.push({ y: 0, remainingL: floorL - item.l - gap, z, dUsed: item.w });
-        placements.push({ item, x: -floorL / 2, y: 0, z });
-      } else {
-        // No more floor space, stack on top (2nd layer)
-        // Place at a random-ish position on existing items
-        const baseX = -floorL / 2 + Math.random() * (floorL - item.l);
-        const baseZ = -floorW / 2 + Math.random() * (floorW - item.w);
-        placements.push({ item, x: baseX, y: 1.2, z: baseZ }); // stack at ~1.2m height
-      }
-    }
-  });
-
+  const gap = 0.1;
+  let rowZ = -cW / 2 + 0.1, colX = -cL / 2 + 0.1, rowRem = cL - 0.2;
+  let rowMaxD = 0;
   const meshes = [];
-  placements.forEach(({ item, x, y, z }) => {
-    const bh = Math.min(item.h, cH - 0.1);
-    const bw = Math.min(item.l, cL - 0.2);
-    const bd = Math.min(item.w, cW - 0.2);
 
-    const geo = new THREE.BoxGeometry(bw, bh, bd);
-    const mat = new THREE.MeshPhongMaterial({ color: item.color, emissive: item.color, emissiveIntensity: 0.1 });
+  blocks.forEach((block, idx) => {
+    const vol = block.cbm * cbmToScene;
+    const asp = block.aspect;
+    const aspVol = asp.l * asp.w * asp.h;
+    const scale = Math.cbrt(vol / aspVol);
+    const bw = asp.l * scale, bh = asp.h * scale, bd = asp.w * scale;
+
+    if (bw > rowRem) {
+      colX = -cL / 2 + 0.1;
+      rowZ += rowMaxD + gap;
+      rowRem = cL - 0.2;
+      rowMaxD = 0;
+    }
+    const bw2 = Math.min(bw, cL - 0.2);
+    const bd2 = Math.min(bd, cW - 0.2);
+    const bh2 = Math.min(bh, cH - 0.1);
+
+    const geo = new THREE.BoxGeometry(bw2, bh2, bd2);
+    const mat = new THREE.MeshPhongMaterial({ color: block.color, emissive: block.color, emissiveIntensity: 0.1 });
     const mesh = new THREE.Mesh(geo, mat);
-    mesh.position.set(x + bw / 2, -cH / 2 + y + bh / 2 + 0.05, z + bd / 2);
+    mesh.position.set(colX + bw2 / 2, -cH / 2 + bh2 / 2 + 0.05, rowZ + bd2 / 2);
     mesh.castShadow = true;
     mesh.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo), new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.2 })));
-    mesh.userData = { blockIdx: item.origIdx, originalColor: item.color, originalEmissive: item.color };
+    mesh.userData = { blockIdx: idx, originalColor: block.color, originalEmissive: block.color };
     order3dScene.add(mesh);
     meshes.push(mesh);
+    colX += bw2 + gap;
+    rowRem -= (bw2 + gap);
+    rowMaxD = Math.max(rowMaxD, bd2);
   });
 
-  // Populate sidebar cargo list (sorted back to original order for display)
-  const displayOrder = [...blocks].sort((a, b) => a.origIdx - b.origIdx);
+  // Populate sidebar cargo list
   const listEl = document.getElementById('viz3dOrderList');
-  listEl.innerHTML = displayOrder.map(b => `
-    <div class="order-item" data-idx="${b.origIdx}"
+  listEl.innerHTML = blocks.map((b, i) => `
+    <div class="order-item" data-idx="${i}"
          style="padding:8px 10px;margin-bottom:4px;border-radius:4px;cursor:pointer;background:#2a2a3e;border-left:3px solid ${'#' + b.color.toString(16).padStart(6,'0')};transition:all 0.2s"
          onmouseover="this.style.background='#3a3a50'"
          onmouseout="this.style.background='#2a2a3e'"
-         onclick="highlightCargo(${b.origIdx})">
-      <div style="font-weight:600;color:#fff">${b.orderNo || '货块'+(b.origIdx+1)}</div>
+         onclick="highlightCargo(${i})">
+      <div style="font-weight:600;color:#fff">${b.orderNo || '货块'+(i+1)}</div>
       <div style="color:#aaa;font-size:11px">${b.cbm.toFixed(1)}方${b.fba ? ' · ' + b.fba : ''}</div>
     </div>
   `).join('');
@@ -1294,10 +1275,6 @@ function clearOrders() {
 }
 
 // ==================== 初始化 ====================
-window.addEventListener('error', function(e) {
-  document.body.innerHTML += '<div style=\"position:fixed;top:0;left:0;right:0;background:#e74c3c;color:#fff;padding:10px;z-index:9999;font-size:13px\">JS Error: ' + e.message + ' at line ' + e.lineno + '</div>';
-});
-try {
 if (isReadonly) {
   document.body.classList.add('readonly');
   // 只读模式：从默认数据加载，预置订单汇总
@@ -1352,9 +1329,6 @@ window.onContainersChange = onContainersChange;
 window.onTotalManualChange = onTotalManualChange;
 window.downloadUpdate = downloadUpdate;
 
-} catch(e) {
-  document.body.innerHTML += '<div style=\"position:fixed;top:0;left:0;right:0;background:#e74c3c;color:#fff;padding:10px;z-index:9999;font-size:13px\">Init Error: ' + e.message + '</div>';
-}
 // 每30秒轮询服务器version.json，检测到更新自动刷新页面
 (function autoUpdate() {
   fetch('version.json?t=' + Date.now())
