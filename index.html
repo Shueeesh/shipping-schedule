@@ -388,6 +388,8 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 // 默认只读模式，加 ?edit 参数可启用编辑功能
 const isReadonly = !window.location.search.includes('edit');
 
+const sampleOrders = [{"orderNo":"AST2899620260523","cbm":1.21,"fba":"","channel":"洛杉矶普船"},{"orderNo":"AST2030720260523","cbm":5.08,"fba":"","channel":"洛杉矶普船"},{"orderNo":"AST2730520260523","cbm":8.57,"fba":"","channel":"洛杉矶普船"},{"orderNo":"AST2811520260523","cbm":1.56,"fba":"GYR3","channel":"洛杉矶普船"},{"orderNo":"AST1486320260523","cbm":0.51,"fba":"GYR2","channel":"洛杉矶普船"},{"orderNo":"AST1670620260523","cbm":8.48,"fba":"XRI3","channel":"纽约"},{"orderNo":"AST2717820260523","cbm":19.24,"fba":"","channel":"纽约"},{"orderNo":"AST2633120260523","cbm":4.13,"fba":"DET2","channel":"纽约"},{"orderNo":"AST2633120260523","cbm":4.14,"fba":"SWF1","channel":"纽约"},{"orderNo":"AST2633120260523","cbm":4.27,"fba":"TEB3","channel":"纽约"},{"orderNo":"AST2759920260522","cbm":1.39,"fba":"MCE1","channel":"奥克兰"},{"orderNo":"AST1517920260522","cbm":26.88,"fba":"SCK8-KP","channel":"奥克兰"},{"orderNo":"AST1512420260522","cbm":3.36,"fba":"MCC1","channel":"奥克兰"},{"orderNo":"AST1474020260522","cbm":0.9,"fba":"MCE1","channel":"奥克兰"},{"orderNo":"AST2602720260521","cbm":18.81,"fba":"SCK8-KP","channel":"奥克兰"},{"orderNo":"AST1632320260523","cbm":0.6,"fba":"","channel":"以星/合德"},{"orderNo":"AST2633120260523","cbm":4.14,"fba":"FTW5","channel":"以星/合德"},{"orderNo":"AST2633120260523","cbm":4.16,"fba":"DEN8","channel":"以星/合德"},{"orderNo":"AST2633120260523","cbm":4.16,"fba":"SBD2","channel":"以星/合德"},{"orderNo":"AST2633120260523","cbm":4.3,"fba":"SBD2","channel":"以星/合德"},{"orderNo":"AST1486320260523","cbm":0.63,"fba":"CLT2","channel":"萨凡纳"},{"orderNo":"AST2783020260523","cbm":3.2,"fba":"GSO1","channel":"萨凡纳"},{"orderNo":"AST2599220260522","cbm":1.98,"fba":"HSV1","channel":"萨凡纳"},{"orderNo":"AST2602020260522","cbm":2.27,"fba":"RDU2","channel":"萨凡纳"},{"orderNo":"AST2785920260522","cbm":1.94,"fba":"BNA2","channel":"萨凡纳"},{"orderNo":"AST2783020260523","cbm":3.2,"fba":"FTW5","channel":"休斯顿"},{"orderNo":"AST3005120260522","cbm":27.2,"fba":"","channel":"休斯顿"},{"orderNo":"AST2902920260522","cbm":0.88,"fba":"FTW5","channel":"休斯顿"},{"orderNo":"AST2602020260522","cbm":3.41,"fba":"IAH3","channel":"休斯顿"},{"orderNo":"AST1408720260522","cbm":1.32,"fba":"FTW5","channel":"休斯顿"},{"orderNo":"AST2763320260523","cbm":14.91,"fba":"","channel":"芝加哥"},{"orderNo":"AST1486320260523","cbm":1.58,"fba":"MDW2","channel":"芝加哥"},{"orderNo":"AST1512420260523","cbm":2.86,"fba":"RFD2","channel":"芝加哥"},{"orderNo":"AST2912620260523","cbm":0.98,"fba":"LAS1","channel":"芝加哥"},{"orderNo":"AST2912620260523","cbm":0.71,"fba":"GYR3","channel":"芝加哥"},{"orderNo":"AST2829720260524","cbm":0.77,"fba":"RDU2","channel":"美森"},{"orderNo":"AST2829720260524","cbm":0.77,"fba":"SCK4","channel":"美森"},{"orderNo":"AST2829720260524","cbm":0.77,"fba":"GYR3","channel":"美森"},{"orderNo":"AST2829720260524","cbm":0.77,"fba":"AVP1","channel":"美森"},{"orderNo":"AST2829720260524","cbm":0.77,"fba":"FWA4","channel":"美森"},{"orderNo":"AST1544820260522","cbm":0.56,"fba":"LAS1","channel":"洛杉矶特惠"},{"orderNo":"AST2753120260522","cbm":0.52,"fba":"LAS1","channel":"洛杉矶特惠"},{"orderNo":"AST1589020260522","cbm":0.92,"fba":"LGB6","channel":"洛杉矶特惠"},{"orderNo":"AST1589020260522","cbm":0.92,"fba":"LGB6","channel":"洛杉矶特惠"},{"orderNo":"AST1629220260520","cbm":4.06,"fba":"FTW5","channel":"洛杉矶特惠"}];
+
 // ==================== 数据层 ====================
 const STORAGE_KEY = 'shipping_data';
 const MAPPING_KEY = 'shipping_mapping';
@@ -579,7 +581,7 @@ function renderTable() {
         <td>${item.route || ''}</td>
         <td>${item.vessel || ''}</td>
         <td>${cutoffDisplay}</td>
-        <td title="${item.containers || 0} 柜 × ${cabinRatio} 舱/柜 = ${(item.containers || 0) * cabinRatio} 舱位" style="cursor:pointer" onclick="openContainerViz('${item.vessel || ''}', ${item.containers || 0}, ${item.total || 0}, ${item.used || 0})">${item.containers || 0}</td>
+        <td title="${item.containers || 0} 柜 × ${cabinRatio} 舱/柜 = ${(item.containers || 0) * cabinRatio} 舱位" style="cursor:pointer" onclick="openContainerViz('${(item.vessel||'').replace(/'/g,\"\\\\'\")}', ${item.containers||0}, ${item.total||0}, ${item.used||0}, '${(item.channel||'').replace(/'/g,\"\\\\'\")}')">${item.containers || 0}</td>
         <td>${item.port || ''}</td>
         <td>${item.country || ''}</td>
         <td class="warehouse-tag"><span class="${wTag}">${warehouse}</span></td>
@@ -828,7 +830,8 @@ function exportCSV() {
 }
 
 // ==================== 集装箱可视化 ====================
-function openContainerViz(vessel, containers, total, used) {
+function openContainerViz(vessel, containers, total, used, channel) {
+  channel = channel || '';
   document.getElementById('vizTitle').textContent = '40HQ 集装箱 — ' + vessel;
   document.getElementById('vizContainers').textContent = containers;
   document.getElementById('vizTotal').textContent = total;
@@ -853,7 +856,7 @@ function openContainerViz(vessel, containers, total, used) {
     for (let i = 0; i < freeInThis; i++) cells.push('free-cell');
 
     html += `<div style="margin-bottom:14px;position:relative">`;
-    html += `<div style="font-size:12px;font-weight:600;margin-bottom:4px;color:#555">柜 #${c + 1} — 占用 ${usedInThis} / ${perContainer} 舱 (${Math.round(usedInThis/perContainer*100)}%) <button class="btn btn-primary btn-sm" style="margin-left:8px;padding:2px 10px;font-size:11px" onclick="event.stopPropagation();openOrder3D('${vessel}', ${usedInThis}, ${perContainer})">🔍 3D查看</button></div>`;
+    html += `<div style="font-size:12px;font-weight:600;margin-bottom:4px;color:#555">柜 #${c + 1} — 占用 ${usedInThis} / ${perContainer} 舱 (${Math.round(usedInThis/perContainer*100)}%) <button class="btn btn-primary btn-sm" style="margin-left:8px;padding:2px 10px;font-size:11px" onclick="event.stopPropagation();openOrder3D('${vessel.replace(/'/g,\"\\\\'\")}', ${usedInThis}, ${perContainer}, '${channel.replace(/'/g,\"\\\\'\")}')">🔍 3D查看</button></div>`;
     html += `<div class="viz-grid">${cells.map(cell => `<div class="viz-cell ${cell}"></div>`).join('')}</div>`;
     html += `</div>`;
   }
@@ -882,7 +885,12 @@ function closeViz3D() {
 window.closeViz3D = closeViz3D;
 window.openOrder3D = openOrder3D;
 
-function openOrder3D(vessel, usedSlots, perContainer) {
+function openOrder3D(vessel, usedSlots, perContainer, channel) {
+  channel = channel || '';
+  // 匹配该渠道的样本订单
+  const channelOrders = sampleOrders.filter(o => o.channel === channel);
+  const totalSampleCbm = channelOrders.reduce((s, o) => s + o.cbm, 0);
+
   const pct = Math.round((usedSlots / perContainer) * 100);
   document.getElementById('viz3dTitle').textContent = '40HQ 实际装柜 — ' + vessel;
   document.getElementById('viz3dStats').textContent = `已占 ${usedSlots} / ${perContainer} 舱 (${pct}%) | 70方容量`;
@@ -934,42 +942,45 @@ function openOrder3D(vessel, usedSlots, perContainer) {
   const usedCbm = usedSlots;
   const freeCbm = perContainer - usedSlots;
 
-  // Generate 4-8 cargo items with varied realistic aspect ratios
-  // Real cargo has diverse shapes: long/flat items, tall boxes, square pallets, etc.
+  // 使用真实样本订单（有单号）或合成货块（无单号时）
   const aspectPresets = [
-    { l:2.5, w:1.2, h:1.8 },  // 长条箱
-    { l:1.0, w:1.0, h:1.0 },  // 方形箱
-    { l:0.8, w:1.5, h:2.2 },  // 高窄箱
-    { l:3.0, w:0.8, h:1.0 },  // 扁长件
-    { l:1.2, w:1.2, h:1.8 },  // 托盘货
-    { l:1.5, w:1.0, h:2.5 },  // 立柱货
-    { l:2.0, w:1.5, h:1.2 },  // 矮宽箱
-    { l:0.6, w:0.8, h:3.0 },  // 超高件
+    { l:2.5, w:1.2, h:1.8 }, { l:1.0, w:1.0, h:1.0 }, { l:0.8, w:1.5, h:2.2 },
+    { l:3.0, w:0.8, h:1.0 }, { l:1.2, w:1.2, h:1.8 }, { l:1.5, w:1.0, h:2.5 },
+    { l:2.0, w:1.5, h:1.2 }, { l:0.6, w:0.8, h:3.0 },
   ];
-  const numBlocks = Math.min(8, Math.max(4, Math.ceil(usedCbm / 6)));
-  const blocks = [];
-  let remaining = usedCbm;
   const colors = [0xc0392b, 0xe74c3c, 0xe67e22, 0xf39c12, 0x2980b9, 0x3498db, 0x1abc9c, 0x9b59b6];
+  let blocks = [];
+  const hasRealOrders = channelOrders.length > 0 && totalSampleCbm > 0;
 
-  for (let i = 0; i < numBlocks; i++) {
-    const share = remaining / (numBlocks - i) * (1.2 - 0.4 * (i / numBlocks));
-    const cbm = Math.max(0.3, Math.round(share * 10) / 10);
-    const actual = Math.min(cbm, remaining);
-    if (actual < 0.05) break;
-    const preset = aspectPresets[i % aspectPresets.length];
-    blocks.push({ cbm: actual, color: colors[i % colors.length], aspect: preset });
-    remaining -= actual;
-  }
-  if (remaining > 0 && blocks.length > 0) {
-    blocks[blocks.length - 1].cbm += remaining;
+  if (hasRealOrders) {
+    // Use real sample orders, scale to fit the container's usedCbm
+    const scaleCbm = usedCbm / totalSampleCbm;
+    blocks = channelOrders.map((o, i) => ({
+      orderNo: o.orderNo,
+      cbm: o.cbm * scaleCbm,
+      fba: o.fba,
+      color: colors[i % colors.length],
+      aspect: aspectPresets[i % aspectPresets.length]
+    }));
+  } else {
+    // Fallback: synthetic blocks
+    const numBlocks = Math.min(6, Math.max(4, Math.ceil(usedCbm / 6)));
+    let remaining = usedCbm;
+    for (let i = 0; i < numBlocks; i++) {
+      const share = remaining / (numBlocks - i) * (1.2 - 0.4 * (i / numBlocks));
+      const cbm = Math.max(0.3, Math.round(share * 10) / 10);
+      const actual = Math.min(cbm, remaining);
+      if (actual < 0.05) break;
+      blocks.push({ orderNo:'', cbm: actual, fba:'', color: colors[i % colors.length], aspect: aspectPresets[i % aspectPresets.length] });
+      remaining -= actual;
+    }
+    if (remaining > 0 && blocks.length > 0) blocks[blocks.length - 1].cbm += remaining;
   }
 
   const gap = 0.1;
   let rowZ = -cW / 2 + 0.1, colX = -cL / 2 + 0.1, rowRem = cL - 0.2;
   let rowMaxD = 0;
-
-  const shapeNames = ['长条箱','方形箱','高窄箱','扁长件','托盘货','立柱货','矮宽箱','超高件'];
-  const meshes = []; // store for highlighting
+  const meshes = [];
 
   blocks.forEach((block, idx) => {
     const vol = block.cbm * cbmToScene;
@@ -1010,8 +1021,8 @@ function openOrder3D(vessel, usedSlots, perContainer) {
          onmouseover="this.style.background='#3a3a50'"
          onmouseout="this.style.background='#2a2a3e'"
          onclick="highlightCargo(${i})">
-      <div style="font-weight:600;color:#fff">货块${i+1}</div>
-      <div style="color:#aaa;font-size:11px">${shapeNames[i % shapeNames.length]} · ${b.cbm.toFixed(1)}方</div>
+      <div style="font-weight:600;color:#fff">${b.orderNo || '货块'+(i+1)}</div>
+      <div style="color:#aaa;font-size:11px">${b.cbm.toFixed(1)}方${b.fba ? ' · ' + b.fba : ''}</div>
     </div>
   `).join('');
 
