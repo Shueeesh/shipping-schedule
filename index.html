@@ -1044,6 +1044,14 @@ function openOrder3D(vessel, usedSlots, perContainer) {
   window.addEventListener('resize', onOrder3dResize);
 }
 
+function onOrder3dResize() {
+  if (!order3dRenderer) return;
+  const c = document.getElementById('viz3dCanvas');
+  order3dCamera.aspect = c.clientWidth / c.clientHeight;
+  order3dCamera.updateProjectionMatrix();
+  order3dRenderer.setSize(c.clientWidth, c.clientHeight);
+}
+
 // ==================== 点击货单高亮货物 ====================
 function highlightCargo(idx) {
   const meshes = window._viz3dMeshes || [];
@@ -1295,6 +1303,7 @@ window.deleteMapping = deleteMapping;
 window.handleFileSelect = handleFileSelect;
 window.onContainersChange = onContainersChange;
 window.onTotalManualChange = onTotalManualChange;
+window.downloadUpdate = downloadUpdate;
 
 // 每30秒轮询服务器version.json，检测到更新自动刷新页面
 (function autoUpdate() {
