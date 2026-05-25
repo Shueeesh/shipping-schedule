@@ -802,34 +802,29 @@ function openContainerViz(vessel, containers, total, used) {
   document.getElementById('vizFree').textContent = total - used;
 
   const grid = document.getElementById('vizGrid');
-  // 总舱位数可能不是70的整数倍，按实际total显示格子
-  const totalCells = total || (containers * cabinRatio);
-  const usedCells = used || 0;
-  const freeCells = totalCells - usedCells;
+  const perContainer = cabinRatio; // 每个柜子的舱位数 = 70
+  const totalUsed = used || 0;
 
-  // 限制最多显示 350 个格子（5个柜子），防止页面卡顿
-  const maxDisplay = Math.min(totalCells, 350);
-  const displayUsed = Math.min(usedCells, maxDisplay);
-  const displayFree = Math.max(0, maxDisplay - displayUsed);
+  // 每个柜子独立展示
+  let html = '';
+  for (let c = 0; c < containers; c++) {
+    const startSlot = c * perContainer;
+    const endSlot = startSlot + perContainer;
+    // 该柜子被占用的舱位数
+    const usedInThis = Math.max(0, Math.min(perContainer, totalUsed - startSlot));
+    const freeInThis = perContainer - usedInThis;
 
-  // 如果格子太多，每格代表多个舱位
-  const ratio = totalCells > maxDisplay ? Math.ceil(totalCells / maxDisplay) : 1;
+    const cells = [];
+    for (let i = 0; i < usedInThis; i++) cells.push('occupied');
+    for (let i = 0; i < freeInThis; i++) cells.push('free-cell');
 
-  const cells = [];
-  // 先放已占用的（红色），再放空闲的（绿色）
-  for (let i = 0; i < displayUsed; i++) cells.push('occupied');
-  for (let i = 0; i < displayFree; i++) cells.push('free-cell');
-
-  // 如果超过显示上限，加省略提示
-  let overflowNote = '';
-  if (totalCells > maxDisplay) {
-    overflowNote = `<div style="font-size:11px;color:#e67e22;margin-top:4px">共 ${totalCells} 个舱位（${containers}柜×${cabinRatio}舱/柜），每格≈${ratio}舱</div>`;
+    html += `<div style="margin-bottom:14px">`;
+    html += `<div style="font-size:12px;font-weight:600;margin-bottom:4px;color:#555">柜 #${c + 1} — 占用 ${usedInThis} / ${perContainer} 舱 (${Math.round(usedInThis/perContainer*100)}%)</div>`;
+    html += `<div class="viz-grid">${cells.map(cell => `<div class="viz-cell ${cell}"></div>`).join('')}</div>`;
+    html += `</div>`;
   }
 
-  grid.style.gridTemplateColumns = `repeat(10, 1fr)`;
-  grid.innerHTML = cells.map(c => `<div class="viz-cell ${c}"></div>`).join('');
-  grid.innerHTML += overflowNote;
-
+  grid.innerHTML = html;
   document.getElementById('vizOverlay').classList.add('active');
 }
 
