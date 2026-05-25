@@ -105,6 +105,22 @@ td.warehouse-tag { text-align: center; }
 .empty-state { text-align: center; padding: 60px 0; color: #999; }
 .empty-state .icon { font-size: 48px; margin-bottom: 12px; }
 
+/* 集装箱可视化 */
+.container-viz-modal { width: 520px; }
+.viz-info { display: flex; gap: 16px; margin-bottom: 16px; flex-wrap: wrap; }
+.viz-stat { background: #f8f9fa; border-radius: 8px; padding: 12px 16px; text-align: center; flex: 1; min-width: 80px; }
+.viz-stat .num { font-size: 22px; font-weight: 700; }
+.viz-stat .lbl { font-size: 11px; color: #888; margin-top: 2px; }
+.viz-stat.used .num { color: #e74c3c; }
+.viz-stat.free .num { color: #27ae60; }
+.viz-grid { display: grid; grid-template-columns: repeat(10, 1fr); gap: 3px; background: #eee; padding: 12px; border-radius: 8px; }
+.viz-cell { aspect-ratio: 1; border-radius: 3px; transition: background 0.3s; }
+.viz-cell.occupied { background: #e74c3c; }
+.viz-cell.free-cell { background: #d4edda; }
+.viz-cell.partial { background: #f39c12; }
+.viz-legend { display: flex; gap: 16px; font-size: 11px; color: #666; margin-top: 8px; align-items: center; }
+.viz-legend span { display: inline-block; width: 12px; height: 12px; border-radius: 2px; margin-right: 4px; vertical-align: middle; }
+
 /* 只读模式 */
 body.readonly .edit-only { display: none !important; }
 
@@ -219,6 +235,31 @@ body.readonly .edit-only { display: none !important; }
       <thead><tr><th>销售产品</th><th>对应渠道</th><th style="width:60px">操作</th></tr></thead>
       <tbody id="mappingBody"></tbody>
     </table>
+  </div>
+</div>
+
+<!-- 集装箱可视化模态框 -->
+<div class="modal-overlay" id="vizOverlay">
+  <div class="modal container-viz-modal">
+    <div class="modal-header">
+      <h3 id="vizTitle">40HQ 集装箱舱位可视化</h3>
+      <button class="btn btn-outline btn-sm" onclick="closeViz()">✕</button>
+    </div>
+    <div class="modal-body" style="display:block">
+      <div class="viz-info">
+        <div class="viz-stat"><div class="num" id="vizContainers">0</div><div class="lbl">柜数</div></div>
+        <div class="viz-stat"><div class="num" id="vizTotal">0</div><div class="lbl">总舱位</div></div>
+        <div class="viz-stat used"><div class="num" id="vizUsed">0</div><div class="lbl">已占用</div></div>
+        <div class="viz-stat free"><div class="num" id="vizFree">0</div><div class="lbl">剩余</div></div>
+      </div>
+      <div style="margin-bottom:4px;font-size:12px;color:#888">方格阵列 — 每个格子代表一个舱位</div>
+      <div class="viz-grid" id="vizGrid"></div>
+      <div class="viz-legend">
+        <span style="background:#d4edda"></span> 空闲
+        <span style="background:#e74c3c"></span> 已占用
+        <span style="background:#f39c12"></span> 部分占用
+      </div>
+    </div>
   </div>
 </div>
 
@@ -507,7 +548,7 @@ function renderTable() {
         <td>${item.route || ''}</td>
         <td>${item.vessel || ''}</td>
         <td>${cutoffDisplay}</td>
-        <td title="${item.containers || 0} 柜 × ${cabinRatio} 舱/柜 = ${(item.containers || 0) * cabinRatio} 舱位">${item.containers || 0}</td>
+        <td title="${item.containers || 0} 柜 × ${cabinRatio} 舱/柜 = ${(item.containers || 0) * cabinRatio} 舱位" style="cursor:pointer" onclick="openContainerViz('${item.vessel || ''}', ${item.containers || 0}, ${item.total || 0}, ${item.used || 0})">${item.containers || 0}</td>
         <td>${item.port || ''}</td>
         <td>${item.country || ''}</td>
         <td class="warehouse-tag"><span class="${wTag}">${warehouse}</span></td>
@@ -681,6 +722,9 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('modalOverlay').addEventListener('click', function(e) {
     if (e.target === this) closeModal();
   });
+  document.getElementById('vizOverlay').addEventListener('click', function(e) {
+    if (e.target === this) closeViz();
+  });
 });
 
 function saveEntry() {
@@ -747,6 +791,50 @@ function exportCSV() {
   a.download = '舱位数据_' + new Date().toISOString().slice(0,10) + '.csv';
   a.click();
   URL.revokeObjectURL(url);
+}
+
+// ==================== 集装箱可视化 ====================
+function openContainerViz(vessel, containers, total, used) {
+  document.getElementById('vizTitle').textContent = '40HQ 集装箱 — ' + vessel;
+  document.getElementById('vizContainers').textContent = containers;
+  document.getElementById('vizTotal').textContent = total;
+  document.getElementById('vizUsed').textContent = used;
+  document.getElementById('vizFree').textContent = total - used;
+
+  const grid = document.getElementById('vizGrid');
+  // 总舱位数可能不是70的整数倍，按实际total显示格子
+  const totalCells = total || (containers * cabinRatio);
+  const usedCells = used || 0;
+  const freeCells = totalCells - usedCells;
+
+  // 限制最多显示 350 个格子（5个柜子），防止页面卡顿
+  const maxDisplay = Math.min(totalCells, 350);
+  const displayUsed = Math.min(usedCells, maxDisplay);
+  const displayFree = Math.max(0, maxDisplay - displayUsed);
+
+  // 如果格子太多，每格代表多个舱位
+  const ratio = totalCells > maxDisplay ? Math.ceil(totalCells / maxDisplay) : 1;
+
+  const cells = [];
+  // 先放已占用的（红色），再放空闲的（绿色）
+  for (let i = 0; i < displayUsed; i++) cells.push('occupied');
+  for (let i = 0; i < displayFree; i++) cells.push('free-cell');
+
+  // 如果超过显示上限，加省略提示
+  let overflowNote = '';
+  if (totalCells > maxDisplay) {
+    overflowNote = `<div style="font-size:11px;color:#e67e22;margin-top:4px">共 ${totalCells} 个舱位（${containers}柜×${cabinRatio}舱/柜），每格≈${ratio}舱</div>`;
+  }
+
+  grid.style.gridTemplateColumns = `repeat(10, 1fr)`;
+  grid.innerHTML = cells.map(c => `<div class="viz-cell ${c}"></div>`).join('');
+  grid.innerHTML += overflowNote;
+
+  document.getElementById('vizOverlay').classList.add('active');
+}
+
+function closeViz() {
+  document.getElementById('vizOverlay').classList.remove('active');
 }
 
 // ==================== 订单导入与汇总 ====================
