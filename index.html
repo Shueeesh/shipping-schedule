@@ -380,18 +380,6 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 // 默认只读模式，加 ?edit 参数可启用编辑功能
 const isReadonly = !window.location.search.includes('edit');
 
-// ==================== 演示用订单数据（12个不同方数的实际订单） ====================
-const demoOrders = [
-  { order:'AST2635920', product:'洛杉矶海卡CBM', cbm:14.48, pcs:200, color:0xc0392b },
-  { order:'AST2602020', product:'洛杉矶卡派KG', cbm:7.01, pcs:98, color:0xe67e22 },
-  { order:'AST2785920', product:'洛杉矶卡派KG', cbm:1.94, pcs:40, color:0xf39c12 },
-  { order:'AST1512420', product:'洛杉矶海卡CBM', cbm:1.11, pcs:18, color:0x2980b9 },
-  { order:'AST2902920', product:'洛杉矶卡派KG', cbm:0.88, pcs:110, color:0x1abc9c },
-  { order:'AST2778320', product:'洛杉矶卡派KG', cbm:0.23, pcs:2, color:0x9b59b6 },
-  { order:'AST1533220', product:'洛杉矶卡派KG', cbm:0.16, pcs:2, color:0x8e44ad },
-  { order:'AST1719920', product:'洛杉矶卡派KG', cbm:0.1, pcs:1, color:0x7f8c8d },
-];
-
 // ==================== 数据层 ====================
 const STORAGE_KEY = 'shipping_data';
 const MAPPING_KEY = 'shipping_mapping';
@@ -513,15 +501,13 @@ function getRemainingClass(remaining, total) {
 }
 
 function getAlertClass(remaining, total, alertText) {
-  if (alertText && alertText.includes('加柜') || alertText.includes('临时')) return 'alert-critical';
+  if (alertText && (alertText.includes('加柜') || alertText.includes('临时'))) return 'alert-critical';
   if (remaining <= 0) return 'alert-critical';
   if (total > 0 && remaining < total * 0.1) return 'alert-warning';
   return 'alert-sufficient';
 }
 
 // ==================== 渲染 ====================
-const routeOptions = [...new Set(defaultData.map(d => d.route))];
-
 function updateFilterOptions() {
   const routes = [...new Set(data.map(d => d.route))].sort();
   const ports = [...new Set(data.map(d => d.port).filter(Boolean))].sort();
@@ -887,7 +873,6 @@ function closeViz3D() {
 }
 window.closeViz3D = closeViz3D;
 window.openOrder3D = openOrder3D;
-let order3dScene, order3dCamera, order3dRenderer, order3dControls, order3dAnimId;
 
 function openOrder3D(vessel, usedSlots, perContainer) {
   const pct = Math.round((usedSlots / perContainer) * 100);
