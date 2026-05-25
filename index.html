@@ -893,7 +893,7 @@ function openOrder3D(vessel, usedSlots, perContainer, channel) {
 
   const pct = Math.round((usedSlots / perContainer) * 100);
   document.getElementById('viz3dTitle').textContent = '40HQ 实际装柜 — ' + vessel;
-  document.getElementById('viz3dStats').textContent = `已占 ${usedSlots} / ${perContainer} 舱 (${pct}%) | 70方容量`;
+  document.getElementById('viz3dStats').textContent = `已占 ${usedSlots} / ${perContainer} 舱 (${pct}%) | 73.5方容量`;
 
   const containerEl = document.getElementById('viz3dCanvas');
   containerEl.innerHTML = '';
@@ -938,7 +938,7 @@ function openOrder3D(vessel, usedSlots, perContainer, channel) {
   order3dScene.add(new THREE.Mesh(floorGeo, new THREE.MeshPhongMaterial({ color: 0x333355, side: THREE.DoubleSide })).translateY(-cH / 2 + 0.02).rotateX(-Math.PI / 2));
 
   const totalSceneVol = cL * cW * cH;
-  const cbmToScene = totalSceneVol / 70;
+  const cbmToScene = totalSceneVol / 73.5;
   const usedCbm = usedSlots;
   const freeCbm = perContainer - usedSlots;
 
