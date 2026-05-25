@@ -1294,6 +1294,10 @@ function clearOrders() {
 }
 
 // ==================== 初始化 ====================
+window.addEventListener('error', function(e) {
+  document.body.innerHTML += '<div style=\"position:fixed;top:0;left:0;right:0;background:#e74c3c;color:#fff;padding:10px;z-index:9999;font-size:13px\">JS Error: ' + e.message + ' at line ' + e.lineno + '</div>';
+});
+try {
 if (isReadonly) {
   document.body.classList.add('readonly');
   // 只读模式：从默认数据加载，预置订单汇总
@@ -1348,6 +1352,9 @@ window.onContainersChange = onContainersChange;
 window.onTotalManualChange = onTotalManualChange;
 window.downloadUpdate = downloadUpdate;
 
+} catch(e) {
+  document.body.innerHTML += '<div style=\"position:fixed;top:0;left:0;right:0;background:#e74c3c;color:#fff;padding:10px;z-index:9999;font-size:13px\">Init Error: ' + e.message + '</div>';
+}
 // 每30秒轮询服务器version.json，检测到更新自动刷新页面
 (function autoUpdate() {
   fetch('version.json?t=' + Date.now())
