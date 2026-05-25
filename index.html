@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>舱位管理系统</title>
 <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/examples/js/controls/OrbitControls.js"></script>
+<script type="importmap">
+{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif; background: #f0f2f5; color: #333; min-height: 100vh; }
@@ -372,7 +372,10 @@ body.readonly .edit-only { display: none !important; }
   </div>
 </div>
 
-<script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
 // ==================== 只读模式检测 ====================
 // 默认只读模式，加 ?edit 参数可启用编辑功能
 const isReadonly = !window.location.search.includes('edit');
@@ -856,6 +859,8 @@ function openContainerViz(vessel, containers, total, used) {
 function closeViz() {
   document.getElementById('vizOverlay').classList.remove('active');
 }
+window.openContainerViz = openContainerViz;
+window.closeViz = closeViz;
 
 // ==================== 3D集装箱可视化 ====================
 let viz3dScene, viz3dCamera, viz3dRenderer, viz3dControls, viz3dAnimationId;
@@ -933,7 +938,7 @@ function openViz3D(vessel, containerNum, perContainer, usedInThis) {
   }
 
   // Orbit controls
-  viz3dControls = new THREE.OrbitControls(viz3dCamera, viz3dRenderer.domElement);
+  viz3dControls = new OrbitControls(viz3dCamera, viz3dRenderer.domElement);
   viz3dControls.target.set(0, -0.5, 0);
   viz3dControls.enableDamping = true;
   viz3dControls.dampingFactor = 0.1;
@@ -970,6 +975,8 @@ function closeViz3D() {
   window.removeEventListener('resize', onViz3dResize);
   document.getElementById('viz3dCanvas').innerHTML = '';
 }
+window.openViz3D = openViz3D;
+window.closeViz3D = closeViz3D;
 
 // ==================== 订单导入与汇总 ====================
 function handleFileSelect(event) {
@@ -1175,6 +1182,27 @@ setInterval(() => {
   const hasExpired = data.some(d => d.cutoff && new Date(d.cutoff) < new Date());
   if (hasExpired) renderTable();
 }, 60000);
+
+// 暴露给 onclick 的全局函数（ES module 需要显式挂载）
+window.openAddModal = openAddModal;
+window.closeModal = closeModal;
+window.saveEntry = saveEntry;
+window.openEditModal = openEditModal;
+window.deleteEntry = deleteEntry;
+window.exportCSV = exportCSV;
+window.resetFilters = resetFilters;
+window.clearAllData = clearAllData;
+window.updateRatio = updateRatio;
+window.clearOrders = clearOrders;
+window.toggleOrderPanel = toggleOrderPanel;
+window.applyAllOrders = applyAllOrders;
+window.applyOrderToSchedule = applyOrderToSchedule;
+window.addMappingRow = addMappingRow;
+window.updateMapping = updateMapping;
+window.deleteMapping = deleteMapping;
+window.handleFileSelect = handleFileSelect;
+window.onContainersChange = onContainersChange;
+window.onTotalManualChange = onTotalManualChange;
 
 // 每30秒轮询服务器version.json，检测到更新自动刷新页面
 (function autoUpdate() {
