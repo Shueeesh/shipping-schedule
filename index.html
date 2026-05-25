@@ -267,17 +267,25 @@ body.readonly .edit-only { display: none !important; }
 
 <!-- 3D集装箱模态框 -->
 <div class="modal-overlay" id="viz3dOverlay">
-  <div class="modal" style="width:800px">
+  <div class="modal" style="width:1000px">
     <div class="modal-header">
       <h3 id="viz3dTitle">40HQ 3D 装柜情况</h3>
       <button class="btn btn-outline btn-sm" onclick="closeViz3D()">✕</button>
     </div>
-    <div style="padding:0;position:relative">
-      <div id="viz3dCanvas" style="width:100%;height:500px;background:#1a1a2e;border-radius:0 0 12px 12px"></div>
-      <div style="position:absolute;bottom:16px;left:16px;display:flex;gap:12px;font-size:12px;color:#fff;background:rgba(0,0,0,0.5);padding:8px 12px;border-radius:6px">
-        <span><span style="display:inline-block;width:12px;height:12px;border-radius:2px;background:#27ae60;vertical-align:middle;margin-right:4px"></span>空闲</span>
-        <span><span style="display:inline-block;width:12px;height:12px;border-radius:2px;background:#e74c3c;vertical-align:middle;margin-right:4px"></span>已占用</span>
-        <span style="margin-left:8px" id="viz3dStats"></span>
+    <div style="display:flex;height:520px">
+      <!-- 左侧货单 -->
+      <div id="viz3dSidebar" style="width:220px;background:#1e1e30;overflow-y:auto;padding:10px;font-size:12px;color:#ccc;flex-shrink:0">
+        <div style="font-weight:600;color:#fff;margin-bottom:8px;border-bottom:1px solid #333;padding-bottom:6px">📦 装柜货单</div>
+        <div id="viz3dOrderList"></div>
+      </div>
+      <!-- 右侧3D -->
+      <div style="flex:1;position:relative">
+        <div id="viz3dCanvas" style="width:100%;height:100%;background:#1a1a2e;border-radius:0 0 12px 0"></div>
+        <div style="position:absolute;bottom:10px;left:10px;display:flex;gap:10px;font-size:11px;color:#fff;background:rgba(0,0,0,0.5);padding:6px 10px;border-radius:4px">
+          <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#27ae60;vertical-align:middle;margin-right:3px"></span>空闲</span>
+          <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#e74c3c;vertical-align:middle;margin-right:3px"></span>已占</span>
+          <span style="margin-left:4px" id="viz3dStats"></span>
+        </div>
       </div>
     </div>
   </div>
@@ -952,10 +960,12 @@ function openOrder3D(vessel, usedSlots, perContainer) {
   let rowZ = -cW / 2 + 0.1, colX = -cL / 2 + 0.1, rowRem = cL - 0.2;
   let rowMaxD = 0;
 
-  blocks.forEach((block) => {
+  const shapeNames = ['长条箱','方形箱','高窄箱','扁长件','托盘货','立柱货','矮宽箱','超高件'];
+  const meshes = []; // store for highlighting
+
+  blocks.forEach((block, idx) => {
     const vol = block.cbm * cbmToScene;
     const asp = block.aspect;
-    // Normalize aspect to match target volume
     const aspVol = asp.l * asp.w * asp.h;
     const scale = Math.cbrt(vol / aspVol);
     const bw = asp.l * scale, bh = asp.h * scale, bd = asp.w * scale;
@@ -966,7 +976,6 @@ function openOrder3D(vessel, usedSlots, perContainer) {
       rowRem = cL - 0.2;
       rowMaxD = 0;
     }
-    // Cap to container bounds
     const bw2 = Math.min(bw, cL - 0.2);
     const bd2 = Math.min(bd, cW - 0.2);
     const bh2 = Math.min(bh, cH - 0.1);
@@ -977,11 +986,29 @@ function openOrder3D(vessel, usedSlots, perContainer) {
     mesh.position.set(colX + bw2 / 2, -cH / 2 + bh2 / 2 + 0.05, rowZ + bd2 / 2);
     mesh.castShadow = true;
     mesh.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo), new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.2 })));
+    mesh.userData = { blockIdx: idx, originalColor: block.color, originalEmissive: block.color };
     order3dScene.add(mesh);
+    meshes.push(mesh);
     colX += bw2 + gap;
     rowRem -= (bw2 + gap);
     rowMaxD = Math.max(rowMaxD, bd2);
   });
+
+  // Populate sidebar cargo list
+  const listEl = document.getElementById('viz3dOrderList');
+  listEl.innerHTML = blocks.map((b, i) => `
+    <div class="order-item" data-idx="${i}"
+         style="padding:8px 10px;margin-bottom:4px;border-radius:4px;cursor:pointer;background:#2a2a3e;border-left:3px solid ${'#' + b.color.toString(16).padStart(6,'0')};transition:all 0.2s"
+         onmouseover="this.style.background='#3a3a50'"
+         onmouseout="this.style.background='#2a2a3e'"
+         onclick="highlightCargo(${i})">
+      <div style="font-weight:600;color:#fff">货块${i+1}</div>
+      <div style="color:#aaa;font-size:11px">${shapeNames[i % shapeNames.length]} · ${b.cbm.toFixed(1)}方</div>
+    </div>
+  `).join('');
+
+  window._viz3dMeshes = meshes;
+  window._viz3dTarget = order3dControls.target.clone();
 
   if (freeCbm > 0) {
     const freeVol = freeCbm * cbmToScene;
@@ -1017,8 +1044,31 @@ function openOrder3D(vessel, usedSlots, perContainer) {
   window.addEventListener('resize', onOrder3dResize);
 }
 
-// Re-bind after functions declared
-window.closeViz3D = closeViz3D;
+// ==================== 点击货单高亮货物 ====================
+function highlightCargo(idx) {
+  const meshes = window._viz3dMeshes || [];
+  // Reset all
+  meshes.forEach(m => {
+    m.material.color.set(m.userData.originalColor);
+    m.material.emissive.set(m.userData.originalEmissive);
+  });
+  // Highlight selected
+  const target = meshes[idx];
+  if (target) {
+    target.material.color.set(0xffff00);
+    target.material.emissive.set(0xffff00);
+    target.material.emissiveIntensity = 0.6;
+    // Fly camera to target
+    const pos = target.position;
+    order3dControls.target.copy(pos);
+    order3dControls.update();
+  }
+  // Update sidebar selection
+  document.querySelectorAll('#viz3dOrderList .order-item').forEach((el, i) => {
+    el.style.background = i === idx ? '#4a4a60' : '#2a2a3e';
+  });
+}
+window.highlightCargo = highlightCargo;
 
 // ==================== 订单导入与汇总 ====================
 function handleFileSelect(event) {
