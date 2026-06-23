@@ -1,0 +1,1062 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>半自动配载系统 — 排柜审核</title>
+<style>
+/* ============================================================
+   Maritime Control Tower — Design Token System
+   ============================================================ */
+:root {
+  /* Palette */
+  --paper: #F5F0E8;
+  --paper-warm: #EDE6D8;
+  --water-deep: #0D2B3E;
+  --water-mid: #153E56;
+  --ink: #1A2640;
+  --cargo-green: #1A6B52;
+  --cargo-green-light: #E8F2EE;
+  --alert-amber: #D4793A;
+  --alert-amber-light: #FDF2E8;
+  --signal-red: #C0392B;
+  --signal-red-light: #FDF0EE;
+  --steel: #6B7B8D;
+  --steel-light: #D5DEE5;
+  --white: #FCFAF7;
+  --shadow: 0 2px 12px rgba(13,43,62,0.08);
+
+  /* Type scale */
+  --font-display: 'Georgia', 'Times New Roman', serif;
+  --font-body: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  --font-mono: 'Cascadia Code', 'JetBrains Mono', 'Consolas', monospace;
+
+  /* Spacing */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 32px;
+  --space-2xl: 48px;
+
+  /* Radius */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+}
+
+/* Reset */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: var(--font-body);
+  background: var(--paper);
+  color: var(--ink);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ============================================================
+   Layout
+   ============================================================ */
+.app-header {
+  background: var(--water-deep);
+  color: var(--white);
+  padding: var(--space-md) var(--space-xl);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 3px solid var(--cargo-green);
+}
+.app-header h1 {
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+.app-header .meta {
+  font-size: 0.8rem;
+  color: var(--steel);
+  font-family: var(--font-mono);
+}
+.header-actions { display: flex; gap: var(--space-sm); }
+
+main {
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: var(--space-xl);
+}
+
+/* ============================================================
+   KPI Row — Big Numbers
+   ============================================================ */
+.kpi-row {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: var(--space-md);
+  margin-bottom: var(--space-xl);
+}
+.kpi-card {
+  background: var(--white);
+  border: 1px solid var(--steel-light);
+  border-radius: var(--radius-md);
+  padding: var(--space-lg);
+  position: relative;
+  overflow: hidden;
+}
+.kpi-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0;
+  width: 4px; height: 100%;
+}
+.kpi-card.containers::before { background: var(--water-mid); }
+.kpi-card.orders::before { background: var(--cargo-green); }
+.kpi-card.cbm::before { background: var(--water-deep); }
+.kpi-card.fill::before { background: var(--alert-amber); }
+.kpi-card.cost::before { background: var(--ink); }
+.kpi-card.unloaded::before { background: var(--signal-red); }
+
+.kpi-label {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--steel);
+  margin-bottom: var(--space-xs);
+  font-weight: 600;
+}
+.kpi-value {
+  font-family: var(--font-display);
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--ink);
+  line-height: 1.1;
+}
+.kpi-sub {
+  font-size: 0.75rem;
+  color: var(--steel);
+  margin-top: var(--space-xs);
+}
+
+/* ============================================================
+   Section headers
+   ============================================================ */
+.section-header {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-md);
+  margin-bottom: var(--space-lg);
+  padding-bottom: var(--space-sm);
+  border-bottom: 1px solid var(--steel-light);
+}
+.section-header h2 {
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  color: var(--ink);
+  letter-spacing: -0.01em;
+}
+.section-header .count {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  color: var(--steel);
+  background: var(--steel-light);
+  padding: 2px 8px;
+  border-radius: 99px;
+}
+
+/* ============================================================
+   Container Grid
+   ============================================================ */
+.container-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: var(--space-md);
+  margin-bottom: var(--space-xl);
+}
+
+.container-card {
+  background: var(--white);
+  border: 1px solid var(--steel-light);
+  border-radius: var(--radius-lg);
+  padding: var(--space-lg);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  position: relative;
+}
+.container-card:hover {
+  box-shadow: var(--shadow);
+  transform: translateY(-2px);
+}
+.container-card.selected {
+  border-color: var(--cargo-green);
+  box-shadow: 0 0 0 3px var(--cargo-green-light);
+}
+.container-card.violation {
+  border-color: var(--alert-amber);
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: var(--space-md);
+}
+.card-name {
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--water-mid);
+}
+.card-region {
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  background: var(--water-deep);
+  color: var(--white);
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+}
+.card-pod {
+  font-size: 0.7rem;
+  color: var(--steel);
+  margin-top: var(--space-xs);
+}
+
+/* Fill bar */
+.fill-bar-wrap {
+  margin: var(--space-md) 0;
+}
+.fill-bar-label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.7rem;
+  color: var(--steel);
+  margin-bottom: var(--space-xs);
+}
+.fill-bar {
+  height: 8px;
+  background: var(--steel-light);
+  border-radius: 99px;
+  overflow: hidden;
+}
+.fill-bar-inner {
+  height: 100%;
+  border-radius: 99px;
+  transition: width 0.5s ease;
+}
+.fill-bar-inner.high { background: var(--cargo-green); }
+.fill-bar-inner.medium { background: var(--alert-amber); }
+.fill-bar-inner.low { background: var(--signal-red); }
+
+/* Card stats row */
+.card-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-sm);
+  font-size: 0.75rem;
+}
+.card-stat {
+  display: flex;
+  justify-content: space-between;
+  color: var(--steel);
+}
+.card-stat strong { color: var(--ink); }
+
+/* Violation badge */
+.violation-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--alert-amber);
+  background: var(--alert-amber-light);
+  padding: 2px 8px;
+  border-radius: 99px;
+  margin-top: var(--space-sm);
+}
+
+/* ============================================================
+   Side Panel — Container Detail
+   ============================================================ */
+.detail-panel {
+  position: fixed;
+  top: 0; right: 0;
+  width: 520px; max-width: 100vw;
+  height: 100vh;
+  background: var(--white);
+  box-shadow: -4px 0 24px rgba(13,43,62,0.15);
+  z-index: 100;
+  overflow-y: auto;
+  transform: translateX(100%);
+  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.detail-panel.open { transform: translateX(0); }
+
+.panel-header {
+  position: sticky; top: 0; z-index: 1;
+  background: var(--water-deep);
+  color: var(--white);
+  padding: var(--space-lg);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.panel-header h3 { font-family: var(--font-mono); font-size: 1rem; }
+.panel-close {
+  background: none; border: 1px solid rgba(255,255,255,0.3); color: white;
+  width: 32px; height: 32px; border-radius: 50%; cursor: pointer;
+  font-size: 1.2rem; display: flex; align-items: center; justify-content: center;
+}
+
+.panel-body { padding: var(--space-lg); }
+
+.panel-kpi-row {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--space-md);
+  margin-bottom: var(--space-lg);
+}
+.panel-kpi {
+  background: var(--paper);
+  padding: var(--space-md);
+  border-radius: var(--radius-md);
+}
+.panel-kpi .label { font-size: 0.65rem; color: var(--steel); text-transform: uppercase; }
+.panel-kpi .value { font-family: var(--font-display); font-size: 1.5rem; font-weight: 700; color: var(--ink); }
+
+.cost-breakdown {
+  margin-bottom: var(--space-lg);
+}
+.cost-breakdown h4 {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--steel);
+  margin-bottom: var(--space-sm);
+}
+.cost-row {
+  display: flex;
+  justify-content: space-between;
+  padding: var(--space-xs) 0;
+  font-size: 0.85rem;
+  border-bottom: 1px solid var(--steel-light);
+}
+.cost-row.total {
+  font-weight: 700;
+  font-size: 1rem;
+  color: var(--ink);
+  border-top: 2px solid var(--water-deep);
+  margin-top: var(--space-sm);
+  padding-top: var(--space-sm);
+}
+
+/* Order table in panel */
+.order-table-wrap {
+  max-height: 300px;
+  overflow-y: auto;
+  border: 1px solid var(--steel-light);
+  border-radius: var(--radius-md);
+}
+.order-table {
+  width: 100%;
+  font-size: 0.7rem;
+  border-collapse: collapse;
+}
+.order-table th {
+  background: var(--paper-warm);
+  padding: var(--space-sm);
+  text-align: left;
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--steel);
+  position: sticky; top: 0;
+}
+.order-table td {
+  padding: var(--space-xs) var(--space-sm);
+  border-bottom: 1px solid var(--steel-light);
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+}
+.order-table tr:hover td { background: var(--cargo-green-light); }
+
+/* Tags */
+.tag {
+  display: inline-block;
+  font-size: 0.6rem;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 99px;
+}
+.tag-battery { background: #FDEBD0; color: #B9770E; }
+.tag-express { background: #D5F5E3; color: #1E8449; }
+.tag-private { background: #D6EAF8; color: #2471A3; }
+
+/* ============================================================
+   Violations Panel
+   ============================================================ */
+.violations-section {
+  background: var(--alert-amber-light);
+  border: 1px solid var(--alert-amber);
+  border-radius: var(--radius-md);
+  padding: var(--space-md);
+  margin-bottom: var(--space-lg);
+}
+.violations-section h4 {
+  color: var(--alert-amber);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.violation-item {
+  font-size: 0.75rem;
+  color: var(--ink);
+  margin-top: var(--space-xs);
+  padding-left: var(--space-md);
+  border-left: 2px solid var(--alert-amber);
+}
+
+/* ============================================================
+   Cost Summary Table
+   ============================================================ */
+.cost-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--white);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  border: 1px solid var(--steel-light);
+}
+.cost-table th {
+  background: var(--water-deep);
+  color: var(--white);
+  padding: var(--space-sm) var(--space-md);
+  text-align: right;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 500;
+}
+.cost-table th:first-child { text-align: left; }
+.cost-table td {
+  padding: var(--space-sm) var(--space-md);
+  text-align: right;
+  border-bottom: 1px solid var(--steel-light);
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+}
+.cost-table td:first-child { text-align: left; font-family: var(--font-body); }
+.cost-table tr:hover td { background: var(--paper); }
+.cost-table .total-row td {
+  font-weight: 700;
+  background: var(--paper-warm);
+  border-top: 2px solid var(--water-deep);
+}
+
+/* ============================================================
+   Unloaded / Battery Tables
+   ============================================================ */
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.75rem;
+}
+.data-table th {
+  text-align: left;
+  padding: var(--space-sm);
+  background: var(--paper-warm);
+  color: var(--steel);
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.data-table td {
+  padding: var(--space-xs) var(--space-sm);
+  border-bottom: 1px solid var(--steel-light);
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+}
+
+/* ============================================================
+   Buttons
+   ============================================================ */
+.btn {
+  font-family: var(--font-body);
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 8px 20px;
+  border-radius: var(--radius-sm);
+  border: none;
+  cursor: pointer;
+  transition: all 0.1s ease;
+}
+.btn-primary { background: var(--cargo-green); color: white; }
+.btn-primary:hover { background: #145A43; }
+.btn-outline { background: transparent; border: 1px solid rgba(255,255,255,0.4); color: white; }
+.btn-outline:hover { background: rgba(255,255,255,0.1); }
+.btn-sm { font-size: 0.7rem; padding: 4px 12px; }
+.btn-danger { background: var(--signal-red); color: white; }
+
+/* ============================================================
+   File input zone
+   ============================================================ */
+.drop-zone {
+  border: 2px dashed var(--steel-light);
+  border-radius: var(--radius-lg);
+  padding: var(--space-2xl);
+  text-align: center;
+  color: var(--steel);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-bottom: var(--space-xl);
+}
+.drop-zone:hover, .drop-zone.dragover {
+  border-color: var(--cargo-green);
+  background: var(--cargo-green-light);
+}
+.drop-zone h3 { font-family: var(--font-display); margin-bottom: var(--space-sm); }
+.drop-zone p { font-size: 0.8rem; }
+
+/* ============================================================
+   Tabs
+   ============================================================ */
+.tabs { display: flex; gap: 0; margin-bottom: var(--space-lg); border-bottom: 1px solid var(--steel-light); }
+.tab {
+  padding: var(--space-sm) var(--space-lg);
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--steel);
+  border-bottom: 3px solid transparent;
+  transition: all 0.15s ease;
+}
+.tab:hover { color: var(--ink); }
+.tab.active { color: var(--cargo-green); border-bottom-color: var(--cargo-green); }
+
+.tab-content { display: none; }
+.tab-content.active { display: block; }
+
+/* ============================================================
+   Overlay
+   ============================================================ */
+.overlay {
+  position: fixed; inset: 0;
+  background: rgba(13,43,62,0.4);
+  z-index: 99;
+  opacity: 0; pointer-events: none;
+  transition: opacity 0.25s ease;
+}
+.overlay.active { opacity: 1; pointer-events: auto; }
+
+/* ============================================================
+   Responsive
+   ============================================================ */
+@media (max-width: 768px) {
+  .kpi-row { grid-template-columns: repeat(3, 1fr); }
+  .container-grid { grid-template-columns: 1fr; }
+  .detail-panel { width: 100vw; }
+  main { padding: var(--space-md); }
+}
+</style>
+</head>
+<body>
+
+<header class="app-header">
+  <div>
+    <h1>◈ 半自动配载系统</h1>
+    <div class="meta">Container Loading Control Tower</div>
+  </div>
+  <div class="header-actions">
+    <input type="file" id="fileInput" accept=".xlsx,.xls" style="display:none" />
+    <button class="btn btn-outline btn-sm" onclick="document.getElementById('fileInput').click()">📂 导入排柜方案</button>
+    <button class="btn btn-primary btn-sm" onclick="exportReview()">✓ 导出审核结果</button>
+  </div>
+</header>
+
+<main>
+  <!-- File drop zone (shown when no data loaded) -->
+  <div id="dropZone" class="drop-zone" onclick="document.getElementById('fileInput').click()">
+    <h3>拖拽排柜方案 Excel 到这里</h3>
+    <p>或点击选择文件 — 支持 .xlsx 格式</p>
+  </div>
+
+  <!-- Main content (hidden until data loaded) -->
+  <div id="mainContent" style="display:none">
+
+    <!-- KPI Row -->
+    <div class="kpi-row" id="kpiRow"></div>
+
+    <!-- Tabs -->
+    <div class="tabs">
+      <div class="tab active" data-tab="containers">🚢 集装箱审核</div>
+      <div class="tab" data-tab="costs">💰 费用汇总</div>
+      <div class="tab" data-tab="unloaded">📦 未装柜 / 带电</div>
+      <div class="tab" data-tab="checklist">✓ 审核检查单</div>
+    </div>
+
+    <!-- Tab: Containers -->
+    <div class="tab-content active" id="tab-containers">
+      <div class="section-header">
+        <h2>集装箱分配方案</h2>
+        <span class="count" id="containerCount"></span>
+      </div>
+      <div class="container-grid" id="containerGrid"></div>
+    </div>
+
+    <!-- Tab: Costs -->
+    <div class="tab-content" id="tab-costs">
+      <div class="section-header"><h2>费用汇总</h2></div>
+      <div id="costSummary"></div>
+    </div>
+
+    <!-- Tab: Unloaded -->
+    <div class="tab-content" id="tab-unloaded">
+      <div class="section-header"><h2>未装柜 / 带电订单</h2></div>
+      <div id="unloadedContent"></div>
+    </div>
+
+    <!-- Tab: Checklist -->
+    <div class="tab-content" id="tab-checklist">
+      <div class="section-header"><h2>审核检查单</h2></div>
+      <div id="checklistContent"></div>
+    </div>
+  </div>
+</main>
+
+<!-- Detail side panel -->
+<div class="overlay" id="overlay" onclick="closeDetail()"></div>
+<div class="detail-panel" id="detailPanel">
+  <div class="panel-header">
+    <h3 id="detailTitle">CT01-XXXXX</h3>
+    <button class="panel-close" onclick="closeDetail()">✕</button>
+  </div>
+  <div class="panel-body" id="detailBody"></div>
+</div>
+
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+<script>
+/* ============================================================
+   Application State
+   ============================================================ */
+let appData = null;
+
+/* ============================================================
+   File Handling
+   ============================================================ */
+const dropZone = document.getElementById('dropZone');
+const fileInput = document.getElementById('fileInput');
+const mainContent = document.getElementById('mainContent');
+
+['dragenter', 'dragover', 'dragleave', 'drop'].forEach(evt => {
+  dropZone.addEventListener(evt, e => { e.preventDefault(); e.stopPropagation(); });
+});
+['dragover', 'dragenter'].forEach(evt => {
+  dropZone.addEventListener(evt, () => dropZone.classList.add('dragover'));
+});
+['dragleave', 'drop'].forEach(evt => {
+  dropZone.addEventListener(evt, () => dropZone.classList.remove('dragover'));
+});
+dropZone.addEventListener('drop', e => {
+  const file = e.dataTransfer.files[0];
+  if (file) loadFile(file);
+});
+fileInput.addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (file) loadFile(file);
+});
+
+async function loadFile(file) {
+  const buf = await file.arrayBuffer();
+  const wb = XLSX.read(buf, { type: 'array' });
+  parseWorkbook(wb);
+}
+
+function parseWorkbook(wb) {
+  const containers = [];
+  let costData = null;
+  let unloadedData = null;
+  let checklistData = null;
+
+  for (const name of wb.SheetNames) {
+    if (name.startsWith('CT') || name.startsWith('ct')) {
+      const ws = wb.Sheets[name];
+      const data = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+
+      // Parse container info
+      const ct = parseContainerSheet(name, data);
+      if (ct) containers.push(ct);
+    } else if (name.includes('费用')) {
+      costData = XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, defval: '' });
+    } else if (name.includes('未装柜')) {
+      unloadedData = XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, defval: '' });
+    } else if (name.includes('审核')) {
+      checklistData = XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, defval: '' });
+    }
+  }
+
+  appData = { containers, costData, unloadedData, checklistData, fileName: fileInput.files[0]?.name };
+  renderAll();
+}
+
+function parseContainerSheet(name, data) {
+  if (data.length < 4) return null;
+
+  // Find header row (运单号)
+  let headerIdx = -1;
+  for (let i = 0; i < Math.min(data.length, 5); i++) {
+    if (data[i] && data[i][0] === '运单号') { headerIdx = i; break; }
+  }
+  if (headerIdx < 0) return null;
+
+  const orders = [];
+  let totalRow = null;
+  let metadataStart = -1;
+
+  for (let i = headerIdx + 1; i < data.length; i++) {
+    const row = data[i];
+    if (!row || row.length === 0) { if (metadataStart < 0 && orders.length > 0) metadataStart = i + 1; continue; }
+    const first = String(row[0] || '').trim();
+
+    if (first === '合计') {
+      totalRow = row;
+      metadataStart = i + 1;
+      continue;
+    }
+    if (metadataStart >= 0 && i >= metadataStart) continue;
+    if (first.startsWith('SCN') || first.startsWith('装柜时间') || first.startsWith('柜号') ||
+        first.startsWith('封条') || first.startsWith('柜型') || first.startsWith('船名') ||
+        first.startsWith('航线') || first.startsWith('ETD') || first.startsWith('POL') ||
+        first.startsWith('仓位率') || first.startsWith('费用')) continue;
+    if (!first || first.length < 5) continue;
+
+    orders.push({
+      waybill: first,
+      warehouse: String(row[13] || ''),
+      zip: String(row[14] || ''),
+      shipmentId: String(row[15] || ''),
+      refId: String(row[16] || ''),
+      pieces: parseFloat(row[17]) || 0,
+      weight: parseFloat(row[18]) || 0,
+      cbm: parseFloat(row[19]) || 0,
+      remark: String(row[22] || ''),
+    });
+  }
+
+  // Extract metadata
+  const meta = { so: '', containerNo: '', sealNo: '', vessel: '', etd: '', eta: '', pol: '', pod: '', route: '', fillRate: '' };
+  for (const row of data) {
+    const text = Array.isArray(row) ? row.join(' ') : String(row);
+    if (text.includes('SCN')) meta.so = text.replace('SCN', '').trim();
+    if (text.includes('柜号:')) meta.containerNo = text.replace('柜号:', '').trim();
+    if (text.includes('封条号:')) meta.sealNo = text.replace('封条号:', '').trim();
+    if (text.includes('船名航次:')) meta.vessel = text.replace('船名航次:', '').trim();
+    if (text.includes('ETD:')) {
+      const parts = text.split('ETA:');
+      meta.etd = parts[0]?.replace('ETD:', '').trim() || '';
+      meta.eta = parts[1]?.trim() || '';
+    }
+    if (text.includes('POL:')) {
+      const parts = text.split('POD:');
+      meta.pol = parts[0]?.replace('POL:', '').trim() || '';
+      meta.pod = parts[1]?.trim() || '';
+    }
+    if (text.includes('航线:')) meta.route = text.replace('航线:', '').trim();
+    if (text.includes('仓位率:')) meta.fillRate = text.replace('仓位率:', '').trim();
+  }
+
+  const totalPieces = parseFloat(totalRow?.[17]) || orders.reduce((s, o) => s + o.pieces, 0);
+  const totalWeight = parseFloat(totalRow?.[18]) || orders.reduce((s, o) => s + o.weight, 0);
+  const totalCBM = parseFloat(totalRow?.[19]) || orders.reduce((s, o) => s + o.cbm, 0);
+
+  // Detect region from POD
+  const pod = meta.pod || '';
+  let region = 'UNKNOWN';
+  if (/L[GA]B|LAX|LALB/i.test(pod)) region = 'LA';
+  else if (/NYC|SAV/i.test(pod)) region = 'NY';
+  else if (/CHI/i.test(pod)) region = 'Chicago';
+  else if (/HOU/i.test(pod)) region = 'Houston';
+
+  const fillRate = parseFloat(meta.fillRate) || (totalCBM / 73 * 100);
+
+  return { name, orders, totalPieces, totalWeight: totalWeight.toFixed(1), totalCBM: totalCBM.toFixed(2), fillRate, region, meta };
+}
+
+/* ============================================================
+   Rendering
+   ============================================================ */
+function renderAll() {
+  if (!appData) return;
+  dropZone.style.display = 'none';
+  mainContent.style.display = 'block';
+
+  renderKPI();
+  renderContainers();
+  renderCosts();
+  renderUnloaded();
+  renderChecklist();
+  setupTabs();
+}
+
+function renderKPI() {
+  const ct = appData.containers;
+  const totalCBM = ct.reduce((s, c) => s + parseFloat(c.totalCBM || 0), 0);
+  const totalOrders = ct.reduce((s, c) => s + c.orders.length, 0);
+  const avgFill = ct.length ? ct.reduce((s, c) => s + c.fillRate, 0) / ct.length : 0;
+  const violations = ct.filter(c => c.fillRate > 100 || c.fillRate < 30).length;
+
+  document.getElementById('kpiRow').innerHTML = `
+    <div class="kpi-card containers">
+      <div class="kpi-label">总柜数</div>
+      <div class="kpi-value">${ct.length}</div>
+    </div>
+    <div class="kpi-card orders">
+      <div class="kpi-label">已装订单</div>
+      <div class="kpi-value">${totalOrders}</div>
+    </div>
+    <div class="kpi-card cbm">
+      <div class="kpi-label">总 CBM</div>
+      <div class="kpi-value">${totalCBM.toFixed(0)}</div>
+      <div class="kpi-sub">${(totalCBM / ct.length).toFixed(1)} m³/柜</div>
+    </div>
+    <div class="kpi-card fill">
+      <div class="kpi-label">平均仓位率</div>
+      <div class="kpi-value">${avgFill.toFixed(1)}%</div>
+    </div>
+    <div class="kpi-card cost">
+      <div class="kpi-label">预估总费用</div>
+      <div class="kpi-value" id="kpiTotalCost">—</div>
+    </div>
+    <div class="kpi-card unloaded">
+      <div class="kpi-label">需关注</div>
+      <div class="kpi-value">${violations}</div>
+      <div class="kpi-sub">违规/异常柜</div>
+    </div>
+  `;
+}
+
+function renderContainers() {
+  document.getElementById('containerCount').textContent = `${appData.containers.length} 个柜`;
+  const grid = document.getElementById('containerGrid');
+
+  grid.innerHTML = appData.containers.map(ct => {
+    const fill = ct.fillRate;
+    let fillClass = 'high';
+    if (fill < 60) fillClass = 'low';
+    else if (fill < 80) fillClass = 'medium';
+
+    const hasViolation = fill > 100 || fill < 30;
+    const cardClass = hasViolation ? 'container-card violation' : 'container-card';
+
+    return `
+    <div class="${cardClass}" onclick="openDetail('${ct.name}')">
+      <div class="card-header">
+        <div>
+          <div class="card-name">${ct.name}</div>
+          <div class="card-pod">${ct.meta.pod || '—'} · ${ct.meta.pol || '—'}</div>
+        </div>
+        <div class="card-region">${ct.region}</div>
+      </div>
+
+      <div class="fill-bar-wrap">
+        <div class="fill-bar-label">
+          <span>仓位率</span><span>${fill.toFixed(1)}%</span>
+        </div>
+        <div class="fill-bar">
+          <div class="fill-bar-inner ${fillClass}" style="width:${Math.min(fill, 100)}%"></div>
+        </div>
+      </div>
+
+      <div class="card-stats">
+        <div class="card-stat"><span>订单</span><strong>${ct.orders.length}</strong></div>
+        <div class="card-stat"><span>CBM</span><strong>${ct.totalCBM}</strong></div>
+        <div class="card-stat"><span>件数</span><strong>${ct.totalPieces}</strong></div>
+        <div class="card-stat"><span>实重</span><strong>${ct.totalWeight}kg</strong></div>
+      </div>
+
+      ${ct.meta.vessel ? `<div style="font-size:0.65rem;color:var(--steel);margin-top:8px;">${ct.meta.vessel}</div>` : ''}
+      ${hasViolation ? `<div class="violation-badge">⚠ 需审核</div>` : ''}
+    </div>`;
+  }).join('');
+}
+
+function renderCosts() {
+  const costDiv = document.getElementById('costSummary');
+  const costData = appData.costData;
+  if (!costData || !costData.length) {
+    costDiv.innerHTML = '<p style="color:var(--steel)">费用数据未生成，请运行 CLI 引擎生成完整排柜方案。</p>';
+    return;
+  }
+
+  // Simple table rendering from flat array data
+  let html = '<div style="overflow-x:auto"><table class="cost-table"><thead><tr>';
+  const headers = costData[0] || [];
+  headers.forEach(h => { html += `<th>${h}</th>`; });
+  html += '</tr></thead><tbody>';
+
+  let totalCost = 0;
+  for (let i = 1; i < costData.length; i++) {
+    const row = costData[i];
+    if (!row || row.every(c => !c)) continue;
+    const isTotal = String(row[0] || '').includes('合计') || String(row[0] || '').includes('总');
+    html += `<tr class="${isTotal ? 'total-row' : ''}">`;
+    row.forEach((cell, j) => {
+      const val = String(cell || '');
+      html += `<td>${val}</td>`;
+      // Track total cost
+      if (isTotal && j === row.length - 1) {
+        const num = parseFloat(val);
+        if (!isNaN(num)) totalCost = num;
+      }
+    });
+    html += '</tr>';
+  }
+  html += '</tbody></table></div>';
+  costDiv.innerHTML = html;
+
+  // Update KPI total cost
+  const costEl = document.getElementById('kpiTotalCost');
+  if (costEl && totalCost > 0) costEl.textContent = '$' + totalCost.toLocaleString();
+}
+
+function renderUnloaded() {
+  const div = document.getElementById('unloadedContent');
+  const data = appData.unloadedData;
+  if (!data || !data.length) {
+    div.innerHTML = '<p style="color:var(--steel)">无未装柜报告数据。</p>';
+    return;
+  }
+
+  let html = '<div class="section-header" style="margin-top:16px"><h3>未装柜货物</h3></div>';
+  html += '<div style="overflow-x:auto"><table class="data-table"><thead><tr>';
+  (data[0] || []).forEach(h => { html += `<th>${h}</th>`; });
+  html += '</tr></thead><tbody>';
+  for (let i = 1; i < data.length; i++) {
+    if (!data[i] || data[i].every(c => !c)) continue;
+    html += '<tr>';
+    data[i].forEach(c => { html += `<td>${c || ''}</td>`; });
+    html += '</tr>';
+  }
+  html += '</tbody></table></div>';
+  div.innerHTML = html;
+}
+
+function renderChecklist() {
+  const div = document.getElementById('checklistContent');
+  const data = appData.checklistData;
+  if (!data || !data.length) {
+    div.innerHTML = '<p style="color:var(--steel)">无审核检查单数据。</p>';
+    return;
+  }
+
+  let html = '<div style="display:grid;gap:12px;max-width:600px">';
+  for (const row of data) {
+    if (!row || row.every(c => !c)) { html += '<div style="height:8px"></div>'; continue; }
+    const label = String(row[0] || '');
+    const status = String(row[1] || '');
+    const note = String(row[2] || '');
+
+    if (label.includes('审核日期') || label.includes('审核人') || label.includes('日期')) {
+      html += `<div style="display:flex;justify-content:space-between;padding:8px 0;border-top:1px solid var(--steel-light)">
+        <span style="font-weight:600">${label}</span><span style="color:var(--steel)">${status}</span></div>`;
+    } else if (label && status) {
+      const isWarning = status.includes('⚠');
+      html += `<div style="background:${isWarning?'var(--alert-amber-light)':'var(--cargo-green-light)'};padding:12px;border-radius:8px;border-left:3px solid ${isWarning?'var(--alert-amber)':'var(--cargo-green)'}">
+        <div style="font-weight:600;margin-bottom:4px">${label}</div>
+        <div style="font-size:0.8rem;color:${isWarning?'var(--alert-amber)':'var(--cargo-green)'}">${status}</div>
+        ${note ? `<div style="font-size:0.7rem;color:var(--steel);margin-top:4px">${note}</div>` : ''}</div>`;
+    }
+  }
+  html += '</div>';
+  div.innerHTML = html;
+}
+
+/* ============================================================
+   Detail Panel
+   ============================================================ */
+function openDetail(name) {
+  const ct = appData.containers.find(c => c.name === name);
+  if (!ct) return;
+
+  document.getElementById('detailTitle').textContent = `${ct.name} — ${ct.region}`;
+
+  let html = '';
+
+  // KPI mini cards
+  html += `<div class="panel-kpi-row">
+    <div class="panel-kpi"><div class="label">仓位率</div><div class="value">${ct.fillRate.toFixed(1)}%</div></div>
+    <div class="panel-kpi"><div class="label">CBM / 订单</div><div class="value">${ct.totalCBM}<span style="font-size:0.7rem;color:var(--steel)"> / ${ct.orders.length}单</span></div></div>
+    <div class="panel-kpi"><div class="label">件数</div><div class="value">${ct.totalPieces}</div></div>
+    <div class="panel-kpi"><div class="label">实重</div><div class="value">${ct.totalWeight}<span style="font-size:0.7rem;color:var(--steel)">kg</span></div></div>
+  </div>`;
+
+  // Metadata
+  html += `<div style="font-size:0.7rem;color:var(--steel);margin-bottom:16px;line-height:1.8">
+    <div>船名航次: <strong style="color:var(--ink)">${ct.meta.vessel || '—'}</strong></div>
+    <div>SO: ${ct.meta.so || '—'} · 柜号: ${ct.meta.containerNo || '—'} · 封条: ${ct.meta.sealNo || '—'}</div>
+    <div>ETD: ${ct.meta.etd || '—'} → ETA: ${ct.meta.eta || '—'}</div>
+    <div>POL: ${ct.meta.pol || '—'} → POD: ${ct.meta.pod || '—'} · ${ct.meta.route || ''}</div>
+  </div>`;
+
+  // Orders table
+  html += `<h4 style="margin-bottom:8px;font-size:0.75rem;color:var(--steel);text-transform:uppercase;letter-spacing:0.04em">订单明细 (${ct.orders.length})</h4>`;
+  html += `<div class="order-table-wrap"><table class="order-table">
+    <thead><tr><th>运单号</th><th>FBA仓</th><th>邮编</th><th>件数</th><th>实重</th><th>CBM</th><th>标记</th></tr></thead>
+    <tbody>`;
+  ct.orders.forEach(o => {
+    let tags = '';
+    if (o.remark && o.remark.includes('带电')) tags += '<span class="tag tag-battery">带电</span> ';
+    if (o.remark && o.remark.includes('express')) tags += '<span class="tag tag-express">快递</span> ';
+    if (!o.warehouse) tags += '<span class="tag tag-private">私址</span>';
+    html += `<tr>
+      <td title="${o.waybill}">${o.waybill.substring(0, 16)}…</td>
+      <td>${o.warehouse || '—'}</td>
+      <td>${o.zip || '—'}</td>
+      <td>${o.pieces}</td>
+      <td>${o.weight}</td>
+      <td>${o.cbm}</td>
+      <td>${tags}</td>
+    </tr>`;
+  });
+  html += '</tbody></table></div>';
+
+  document.getElementById('detailBody').innerHTML = html;
+  document.getElementById('detailPanel').classList.add('open');
+  document.getElementById('overlay').classList.add('active');
+}
+
+function closeDetail() {
+  document.getElementById('detailPanel').classList.remove('open');
+  document.getElementById('overlay').classList.remove('active');
+}
+
+/* ============================================================
+   Tabs
+   ============================================================ */
+function setupTabs() {
+  document.querySelectorAll('.tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(tc => tc.classList.remove('active'));
+      tab.classList.add('active');
+      document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
+    });
+  });
+}
+
+/* ============================================================
+   Export
+   ============================================================ */
+function exportReview() {
+  alert('审核结果导出功能：将当前审核状态（含人工批注）回写到 Excel。\n\n此功能需要后端支持，当前为 UI 原型阶段。');
+}
+
+/* ============================================================
+   Keyboard shortcuts
+   ============================================================ */
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeDetail();
+});
+</script>
+
+</body>
+</html>
